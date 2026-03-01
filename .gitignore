@@ -4,3 +4,8 @@ __pycache__/
 *.sqlite3
 ready_to_publish/
 .env
+.env
+venv/
+ready_to_publish/
+*.json
+keywords.txt

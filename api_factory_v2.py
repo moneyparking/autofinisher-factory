@@ -7,7 +7,8 @@ from pathlib import Path
 from statistics import mean
 from typing import Any, Dict, List
 
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.colors import HexColor
+from reportlab.lib.pagesizes import A4, letter
 from reportlab.pdfgen import canvas
 
 from etsy_api_client import search_listings
@@ -93,29 +94,78 @@ def build_etsy_payload(keyword: str, price: float, opportunity_score: float) -> 
 
 
 def generate_pdf(keyword: str, product_title: str, avg_price: float, opportunity_score: float) -> str:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    filename = OUTPUT_DIR / f"etsy_{keyword.replace(' ', '-').lower()}_{timestamp}.pdf"
-    c = canvas.Canvas(str(filename), pagesize=letter)
-    width, height = letter
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    filename = f"product_{keyword.replace(' ', '-')}_{timestamp}.pdf"
+    filepath = os.path.join(OUTPUT_DIR, filename)
+    title = f"{keyword.title()}"
 
-    sections = [
-        (40, height - 110, width - 80, 70, f"Keyword: {keyword}"),
-        (40, height - 200, width - 80, 70, f"Product: {product_title}"),
-        (40, height - 290, width - 80, 70, f"Average Price: {avg_price:.2f}"),
-        (40, height - 380, width - 80, 70, f"Opportunity Score: {opportunity_score:.2f}"),
-        (40, height - 470, width - 80, 70, "Status: Ready to publish review artifact"),
-    ]
+    c = canvas.Canvas(filepath, pagesize=A4)
+    width, height = A4
 
-    c.setFont("Helvetica-Bold", 18)
-    c.drawString(40, height - 50, "Autofinisher Factory Etsy Report")
-    c.setFont("Helvetica", 12)
-    for x, y, w, h, text in sections:
-        c.rect(x, y, w, h)
-        c.drawString(x + 12, y + h - 28, text[:120])
-    c.showPage()
+    # 1. Эстетичный фон (Soft Beige / Off-White)
+    bg_color = HexColor("#FAF9F6")
+    c.setFillColor(bg_color)
+    c.rect(0, 0, width, height, stroke=0, fill=1)
+
+    # 2. Заголовок (Элегантный контраст)
+    text_color = HexColor("#2C3E50")
+    c.setFillColor(text_color)
+    c.setFont("Helvetica-Bold", 26)
+    c.drawString(50, height - 70, title)
+
+    c.setFont("Helvetica", 10)
+    c.setFillColor(HexColor("#7F8C8D"))
+    c.drawString(50, height - 90, "Daily Productivity & Mindfulness Tracker")
+
+    # 3. Блок: Top 3 Priorities
+    c.setFillColor(text_color)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, height - 140, "Top 3 Priorities")
+    c.setLineWidth(0.5)
+    c.setStrokeColor(HexColor("#BDC3C7"))
+    for i in range(3):
+        y_pos = height - 170 - (i * 30)
+        c.circle(60, y_pos + 4, 8, stroke=1, fill=0)
+        c.line(80, y_pos, 280, y_pos)
+
+    # 4. Блок: Time Blocking (Schedule)
+    c.drawString(50, height - 280, "Daily Schedule")
+    time_start_y = height - 310
+    c.setFont("Helvetica", 11)
+    for i, hour in enumerate(range(7, 21)):
+        y_pos = time_start_y - (i * 25)
+        c.drawString(50, y_pos, f"{hour}:00")
+        c.line(90, y_pos - 2, 280, y_pos - 2)
+
+    # 5. Блок: Habits & Wellness (Правая колонка)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(320, height - 140, "Wellness & Habits")
+    c.setFont("Helvetica", 11)
+    c.drawString(320, height - 170, "Water Intake:")
+    for i in range(8):
+        c.circle(410 + (i * 15), height - 166, 5, stroke=1, fill=0)
+
+    c.drawString(320, height - 210, "Daily Habits:")
+    for i in range(4):
+        y_pos = height - 240 - (i * 25)
+        c.rect(320, y_pos, 12, 12, stroke=1, fill=0)
+        c.line(340, y_pos + 2, 530, y_pos + 2)
+
+    # 6. Блок: Notes / Brain Dump (Dotted Grid)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(320, height - 360, "Brain Dump / Notes")
+
+    c.setFillColor(HexColor("#ECF0F1"))
+    c.rect(320, 50, 220, height - 430, stroke=0, fill=1)
+
+    c.setFillColor(HexColor("#BDC3C7"))
+    for x in range(330, 540, 15):
+        for y_dot in range(60, int(height - 380), 15):
+            c.circle(x, y_dot, 0.7, stroke=0, fill=1)
+
     c.save()
-    return str(filename)
+    return filepath
 
 
 def main() -> int:
