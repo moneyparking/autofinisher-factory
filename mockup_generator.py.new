@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+import os, json, argparse, random, math
+import fitz
+from PIL import Image, ImageOps, ImageFilter
+
+WORKSPACE = os.path.expanduser('~/autofinisher-factory')
+OUTPUT_DIR = os.path.join(WORKSPACE, 'ready_to_publish')
+CONFIG_PATH = os.path.join(WORKSPACE, 'templates.json')
+R = getattr(Image, 'Resampling', Image)
+
+def load_templates_config():
+    if not os.path.exists(CONFIG_PATH):
+        print(f'[!] Файл конфигурации не найден: {CONFIG_PATH}')
+        return {}
+    with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def solve(pa, pb):
+    m=[]
+    for (x,y),(u,v) in zip(pa,pb):
+        m += [[x,y,1,0,0,0,-u*x,-u*y,u],[0,0,0,x,y,1,-v*x,-v*y,v]]
+    for i in range(8):
+        p=max(range(i,8), key=lambda r: abs(m[r][i])); m[i],m[p]=m[p],m[i]
+        d=m[i][i]
+        for j in range(i,9): m[i][j]/=d
+        for r in range(8):
+            if r!=i:
+                f=m[r][i]
+                for j in range(i,9): m[r][j]-=f*m[i][j]
+    return [m[i][8] for i in range(8)]
+
+def lerp(a,b,t): return (a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t)
+
+def quad_size(q):
+    tl,tr,br,bl=q
+    top=math.dist(tl,tr); bot=math.dist(bl,br); left=math.dist(tl,bl); right=math.dist(tr,br)
+    return int((top+bot)/2), int((left+right)/2)
+
+def fit_quad(frame, sw, sh, margin=0.04):
+    tl,tr,br,bl=frame
+    itl=lerp(tl,br,margin); itr=lerp(tr,bl,margin); ibr=lerp(br,tl,margin); ibl=lerp(bl,tr,margin)
+    aw,ah=quad_size((itl,itr,ibr,ibl)); sr=sw/sh; ar=aw/ah
+    if sr>ar:
+        lg=0; rg=0; tg=bg=(ah-aw/sr)/(2*ah)
+    else:
+        tg=0; bg=0; lg=rg=(aw-ah*sr)/(2*aw)
+    top_l=lerp(itl,itr,lg); top_r=lerp(itr,itl,rg); bot_l=lerp(ibl,ibr,lg); bot_r=lerp(ibr,ibl,rg)
+    return (lerp(top_l,bot_l,tg), lerp(top_r,bot_r,tg), lerp(bot_r,top_r,bg), lerp(bot_l,top_l,bg))
+
+def gradient(size):
+    w,h=size; g=Image.new('L',(w,h)); px=g.load()
+    for x in range(w):
+        v=int(228-(68*x/max(1,w-1)))
+        for y in range(h): px[x,y]=v
+    return g
+
+def prepare_poster(pdf_path, target):
+    doc=fitz.open(pdf_path); page=doc.load_page(0); pix=page.get_pixmap(dpi=300)
+    img=Image.frombytes('RGB',[pix.width,pix.height],pix.samples).convert('RGB')
+    img=ImageOps.contain(img, target, method=R.LANCZOS)
+    img=Image.blend(img, Image.new('RGB', img.size, '#1A1A1A'), 0.10)
+    g=gradient(img.size)
+    light=Image.new('RGB', img.size, (248,248,248)); dark=Image.new('RGB', img.size, (0,0,0))
+    img=Image.composite(light, img, g.point(lambda p:int(p*0.10)))
+    img=Image.composite(img, dark, g.point(lambda p:int((255-p)*0.08)))
+    n=Image.effect_noise(img.size, 5).convert('L'); n3=Image.merge('RGB',(n,n,n)); img=Image.blend(img,n3,0.035)
+    mask=Image.new('L', img.size, 0); px=mask.load(); w,h=img.size; b=24
+    for x in range(w):
+        for y in range(h):
+            d=min(x,y,w-1-x,h-1-y)
+            if d<b: px[x,y]=int((b-d)/b*90)
+    mask=mask.filter(ImageFilter.GaussianBlur(12))
+    img=Image.composite(Image.new('RGB', img.size, (0,0,0)), img, mask.point(lambda p:min(255,p*2)))
+    return img.convert('RGBA')
+
+def create_photorealistic_mockup(pdf_path, template_name=None):
+    t=load_templates_config()
+    if not t: return
+    if not template_name or template_name not in t:
+        av=[k for k in t if os.path.exists(os.path.join(WORKSPACE,k))]
+        if not av:
+            print('[!] Нет доступных файлов шаблонов в директории.'); return
+        template_name=random.choice(av)
+    tpl=os.path.join(WORKSPACE, template_name)
+    if not os.path.exists(tpl): print(f'[!] Файл шаблона не найден: {tpl}'); return
+    c=t[template_name]['corners']
+    frame=[tuple(c['top_left']),tuple(c['top_right']),tuple(c['bottom_right']),tuple(c['bottom_left'])]
+    tw,th=quad_size(frame)
+    print(f'⚙️ Используем шаблон: {template_name}')
+    print(f'⚙️ Размер целевой области: {tw}x{th} px')
+    bg=Image.open(tpl).convert('RGBA')
+    poster=prepare_poster(pdf_path,(tw,th))
+    dq=fit_quad(frame, poster.width, poster.height, 0.04)
+    coeffs=solve(dq, [(0,0),(poster.width,0),(poster.width,poster.height),(0,poster.height)])
+    warped=poster.transform(bg.size, Image.Transform.PERSPECTIVE, coeffs, resample=R.BICUBIC)
+    bg.alpha_composite(warped)
+    base=os.path.basename(pdf_path).replace('.pdf',''); stub=os.path.splitext(template_name)[0]
+    out=os.path.join(OUTPUT_DIR, f'{base}_{stub}_REAL_PIN.jpg')
+    bg.convert('RGB').save(out, quality=100)
+    print(f'✅ Фотореалистичный Пин готов: {out}')
+    return out
+
+def main():
+    p=argparse.ArgumentParser(); p.add_argument('--pdf', required=True); p.add_argument('--template'); a=p.parse_args()
+    if not os.path.exists(a.pdf): print(f'[!] Файл PDF не найден: {a.pdf}'); return
+    create_photorealistic_mockup(a.pdf, a.template)
+
+if __name__=='__main__': main()

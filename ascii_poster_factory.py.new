@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+import os
+import argparse
+from datetime import datetime
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.colors import HexColor
+
+WORKSPACE = os.path.expanduser("~/autofinisher-factory")
+OUTPUT_DIR = os.path.join(WORKSPACE, "ready_to_publish")
+
+
+def generate_ascii_pdf(keyword):
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    filename = f"poster_{keyword.replace(' ', '-')}_{timestamp}.pdf"
+    filepath = os.path.join(OUTPUT_DIR, filename)
+
+    c = canvas.Canvas(filepath, pagesize=A4)
+    width, height = A4
+
+    bg = HexColor("#0B0B0D")
+    glow_dark = HexColor("#6B110F")
+    glow_mid = HexColor("#B3261E")
+    glow_hot = HexColor("#FF5A36")
+    glow_neon = HexColor("#FF8A4C")
+    meta = HexColor("#8E8E96")
+    accent = HexColor("#FFC29A")
+
+    c.setFillColor(bg)
+    c.rect(0, 0, width, height, stroke=0, fill=1)
+
+    phrase_lines = ["YOU'RE", "ABSOLUTELY", "RIGHT!"]
+    font_size = 30
+    leading = 42
+    center_x = width / 2
+    start_y = (height / 2) + 62
+
+    # subtle scan/grid vibes
+    c.setStrokeColor(HexColor("#121218"))
+    c.setLineWidth(0.4)
+    for y in range(36, int(height), 18):
+        c.line(0, y, width, y)
+
+    for idx, line in enumerate(phrase_lines):
+        y = start_y - (idx * leading)
+
+        # deep 3D shadow stack
+        c.setFont("Courier-Bold", font_size)
+        c.setFillColor(glow_dark)
+        for offset in range(12, 0, -2):
+            c.drawCentredString(center_x + offset, y - offset * 0.9, line)
+
+        # warm mid shadow
+        c.setFillColor(glow_mid)
+        c.drawCentredString(center_x + 5, y - 4, line)
+        c.drawCentredString(center_x + 3, y - 2, line)
+
+        # glitch accents
+        c.setFillColor(HexColor("#FF6A3D"))
+        c.drawCentredString(center_x - 1.5, y + 1.2, line)
+        c.setFillColor(HexColor("#FF3B2F"))
+        c.drawCentredString(center_x + 1.2, y - 0.4, line)
+
+        # main face
+        c.setFillColor(glow_neon)
+        c.drawCentredString(center_x, y, line)
+
+        # top highlight
+        c.setFillColor(accent)
+        c.drawCentredString(center_x - 0.8, y + 0.8, line)
+
+    # metadata: readable, secondary
+    c.setFillColor(meta)
+    c.setFont("Helvetica", 11)
+    c.drawString(42, height - 34, "AUTOFINISHER PREMIUM ASCII SERIES")
+    c.drawRightString(width - 42, height - 34, datetime.now().strftime("RENDERED %Y-%m-%d"))
+
+    c.setFont("Helvetica", 10)
+    c.setFillColor(HexColor("#6F6F78"))
+    c.drawString(42, 26, f"AUTHOR: AUTOFINISHER FACTORY | THEME TOKEN: {keyword.upper()}")
+    c.drawRightString(width - 42, 26, "NEON / GLITCH EDITION")
+
+    c.save()
+    return filepath
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--keyword", required=True)
+    parser.add_argument("--price", type=float, default=9.99)
+    args = parser.parse_args()
+
+    pdf_path = generate_ascii_pdf(args.keyword)
+    print(f"✅ PDF создан: {pdf_path}")
+
+
+if __name__ == "__main__":
+    main()

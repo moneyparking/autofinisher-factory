@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ metadata.collection_id }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  {% if resolved_style_tokens.font_css_url %}<link href="{{ resolved_style_tokens.font_css_url }}" rel="stylesheet">{% endif %}
+  <style>
+    :root {
+      --bg0: {{ resolved_style_tokens.bg_0 }};
+      --bg1: {{ resolved_style_tokens.bg_1 }};
+      --ink: {{ resolved_style_tokens.headline_core }};
+      --signal: {{ resolved_style_tokens.band }};
+      --gridMajor: {{ resolved_style_tokens.grid_major }};
+      --gridMinor: {{ resolved_style_tokens.grid_minor }};
+      --meta: {{ resolved_style_tokens.meta }};
+      --metaSoft: {{ resolved_style_tokens.meta_soft }};
+      --w: {{ output.width }}px;
+      --h: {{ output.height }}px;
+      --safeX: {{ render_context.safe_x }};
+      --safeY: {{ render_context.safe_y }};
+      --headlineWidth: {{ render_context.headline_width }};
+      --subheadlineWidth: {{ render_context.subheadline_width }};
+      --railWidth: {{ render_context.metadata_rail_width }};
+      --headlineFont: {{ resolved_style_tokens.headline_font }};
+      --metaFont: {{ resolved_style_tokens.meta_font }};
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: var(--w);
+      height: var(--h);
+      overflow: hidden;
+      background: var(--bg0);
+    }
+    body {
+      font-family: var(--metaFont);
+      color: var(--ink);
+    }
+    .poster {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: var(--railWidth) 1fr;
+      background:
+        linear-gradient(to right, rgba(0,0,0,0) calc(var(--railWidth) - 1px), rgba(0,0,0,.12) calc(var(--railWidth) - 1px), rgba(0,0,0,.12) var(--railWidth), transparent var(--railWidth)),
+        linear-gradient(180deg, var(--bg0) 0%, var(--bg1) 100%);
+    }
+    .poster::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, var(--gridMinor) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--gridMinor) 1px, transparent 1px);
+      background-size: 96px 96px;
+      opacity: .58;
+      pointer-events: none;
+    }
+    .poster::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: var(--railWidth);
+      height: 100%;
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.04) 0%, rgba(0,0,0,.06) 100%),
+        repeating-linear-gradient(180deg, rgba(0,0,0,.14) 0 1px, transparent 1px 96px);
+      pointer-events: none;
+    }
+    .rail {
+      position: relative;
+      z-index: 2;
+      padding: var(--safeY) 1.7vw;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      border-right: 1px solid rgba(0,0,0,.12);
+    }
+    .rail-top, .rail-bottom {
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      text-transform: uppercase;
+      letter-spacing: .22em;
+      font-size: 22px;
+      color: var(--meta);
+      display: grid;
+      gap: 22px;
+      justify-content: start;
+    }
+    .content {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: var(--safeY) var(--safeX);
+    }
+    .topband {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: start;
+      gap: 32px;
+      margin-bottom: 4vh;
+    }
+    .kicker-band {
+      display: inline-flex;
+      align-items: center;
+      min-height: 72px;
+      padding: 0 26px;
+      background: var(--signal);
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      font-size: 28px;
+      font-family: var(--headlineFont);
+    }
+    .meta-top {
+      text-align: right;
+      text-transform: uppercase;
+      letter-spacing: .18em;
+      color: var(--meta);
+      font-size: 22px;
+      line-height: 1.5;
+    }
+    .hero {
+      display: grid;
+      align-content: center;
+      justify-items: start;
+      text-align: left;
+      gap: 38px;
+      padding-bottom: 5vh;
+    }
+    .headline {
+      width: var(--headlineWidth);
+      margin: 0;
+      font-family: var(--headlineFont);
+      font-size: clamp({{ layout.min_font_px }}px, 8vw, {{ layout.max_font_px }}px);
+      font-weight: 900;
+      line-height: .9;
+      letter-spacing: -.04em;
+      text-transform: uppercase;
+      color: var(--ink);
+    }
+    .subheadline {
+      width: var(--subheadlineWidth);
+      font-size: clamp(30px, 1.2vw + 16px, 58px);
+      line-height: 1.28;
+      text-transform: uppercase;
+      color: var(--metaSoft);
+      letter-spacing: .07em;
+    }
+    .body {
+      width: 52%;
+      font-size: 28px;
+      line-height: 1.5;
+      color: var(--meta);
+      max-width: 900px;
+    }
+    .footer {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 28px;
+      align-items: end;
+      border-top: 1px solid rgba(0,0,0,.14);
+      padding-top: 26px;
+      text-transform: uppercase;
+      letter-spacing: .16em;
+      color: var(--meta);
+      font-size: 22px;
+    }
+    .footer .center { justify-self: center; text-align: center; }
+    .footer .right { justify-self: end; }
+  </style>
+</head>
+<body>
+  <section class="poster">
+    <aside class="rail">
+      <div class="rail-top">
+        <span>{{ metadata.collection_id }}</span>
+        <span>{{ metadata.edition_id }}</span>
+      </div>
+      <div></div>
+      <div class="rail-bottom">
+        <span>{{ metadata.keyword }}</span>
+        <span>{{ metadata.created_at_display }}</span>
+      </div>
+    </aside>
+    <main class="content">
+      <div class="topband">
+        <div class="kicker-band">{{ content.kicker }}</div>
+        <div class="meta-top">
+          <div>{{ metadata.source }}</div>
+          <div>{{ metadata.created_at_display }}</div>
+        </div>
+      </div>
+      <section class="hero">
+        <h1 class="headline">{{ content.headline_html | safe }}</h1>
+        {% if content.subheadline %}<div class="subheadline">{{ content.subheadline }}</div>{% endif %}
+        {% if content.body %}<div class="body">{{ content.body }}</div>{% endif %}
+      </section>
+      <footer class="footer">
+        <div>{{ content.footer_left }}</div>
+        <div class="center">{{ content.footer_center }}</div>
+        <div class="right">{{ content.footer_right }}</div>
+      </footer>
+    </main>
+  </section>
+</body>
+</html>

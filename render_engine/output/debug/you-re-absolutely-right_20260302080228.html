@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>affirmation_drop_01</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg0: #07080C;
+      --bg1: #0B0E17;
+      --bg2: #180E18;
+      --major: rgba(255,110,60,0.22);
+      --minor: rgba(255,110,60,0.08);
+      --core: #FF7A3D;
+      --hot: #FF4D00;
+      --pink: #FF4E88;
+      --hl: #FFD3B4;
+      --meta: rgba(220,230,255,0.70);
+      --meta2: rgba(180,190,220,0.42);
+      --w: 2400px;
+      --h: 3600px;
+      --safeX: 8%;
+      --safeY: 7%;
+      --headlineWidth: 82%;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: var(--w);
+      height: var(--h);
+      overflow: hidden;
+      background: #000;
+    }
+    body {
+      font-family: "Space Mono", monospace;
+      color: white;
+    }
+    .poster {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: var(--safeY) var(--safeX);
+      background:
+        radial-gradient(circle at 50% 38%, rgba(255,110,60,.18) 0%, rgba(255,110,60,.04) 22%, transparent 52%),
+        radial-gradient(circle at 50% 88%, rgba(255,70,0,.16) 0%, rgba(255,70,0,.05) 20%, transparent 44%),
+        linear-gradient(180deg, rgba(255,255,255,.03), transparent 12%),
+        linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 52%, var(--bg2) 100%);
+      isolation: isolate;
+    }
+    .poster::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, var(--minor) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--minor) 1px, transparent 1px);
+      background-size: 84px 84px;
+      opacity: .5;
+      mix-blend-mode: screen;
+    }
+    .poster::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(180deg, rgba(255,255,255,.03) 0 2px, transparent 2px 9px);
+      opacity: .22;
+      mix-blend-mode: screen;
+    }
+    .grid {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: .76;
+    }
+    .topbar, .footer {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 24px;
+      align-items: center;
+      font-size: 28px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--meta);
+    }
+    .topbar .right, .footer .right { justify-self: end; }
+    .topbar .center, .footer .center { justify-self: center; text-align: center; }
+    .hero {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      text-align: center;
+      padding: 2vh 0 3vh;
+    }
+    .kicker {
+      margin-bottom: clamp(24px, 1.8vw, 44px);
+      font-size: clamp(24px, 1vw + 14px, 44px);
+      letter-spacing: .34em;
+      text-transform: uppercase;
+      color: var(--meta);
+      text-shadow: 0 0 16px rgba(255,130,60,.15);
+    }
+    .headline-wrap {
+      width: min(var(--headlineWidth), 100%);
+      display: grid;
+      justify-items: center;
+    }
+    .headline {
+      margin: 0;
+      font-family: "Orbitron", sans-serif;
+      font-weight: 900;
+      text-transform: uppercase;
+      line-height: .92;
+      letter-spacing: .04em;
+      font-size: clamp(140px, 7.4vw, 320px);
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      color: var(--core);
+      text-shadow:
+        0 0 2px rgba(255,227,208,.9),
+        0 0 12px rgba(255,120,60,.65),
+        0 0 28px rgba(255,95,45,.52),
+        0 8px 0 rgba(124,14,8,.95),
+        0 16px 24px rgba(0,0,0,.58);
+    }
+    .headline .pink { color: var(--pink); text-shadow: 0 0 18px rgba(255,78,136,.34); }
+    .headline .hot { color: var(--hot); }
+    .headline .hl { color: var(--hl); }
+    .subheadline {
+      margin-top: clamp(36px, 2.2vw, 72px);
+      max-width: 68%;
+      font-size: clamp(28px, 1.2vw + 14px, 52px);
+      line-height: 1.45;
+      color: var(--meta2);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .line {
+      position: absolute;
+      left: var(--safeX);
+      right: var(--safeX);
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,130,70,.42), transparent);
+      z-index: 2;
+    }
+    .line.top { top: calc(var(--safeY) + 74px); }
+    .line.bottom { bottom: calc(var(--safeY) + 72px); }
+  </style>
+</head>
+<body>
+  <section class="poster">
+    <svg class="grid" viewBox="0 0 2400 3600" preserveAspectRatio="none" aria-hidden="true">
+      <g opacity="0.82" stroke="rgba(255,110,60,0.22)" stroke-width="2" fill="none">
+        <line x1="0" y1="2520" x2="2400" y2="2520" />
+        
+        <line x1="1200" y1="2520" x2="0" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="1200" y1="2520" x2="160" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="1200" y1="2520" x2="320" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="1200" y1="2520" x2="480" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="1200" y1="2520" x2="640" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="1200" y1="2520" x2="800" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="1200" y1="2520" x2="960" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="1200" y1="2520" x2="1120" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="1200" y1="2520" x2="1280" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="1200" y1="2520" x2="1440" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="1200" y1="2520" x2="1600" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="1200" y1="2520" x2="1760" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="1200" y1="2520" x2="1920" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="1200" y1="2520" x2="2080" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="1200" y1="2520" x2="2240" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="1200" y1="2520" x2="2400" y2="3600" stroke="rgba(255,110,60,0.08)" />
+        
+        
+        <line x1="240" y1="2680" x2="2160" y2="2680" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="240" y1="2860" x2="2160" y2="2860" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="240" y1="3060" x2="2160" y2="3060" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="240" y1="3280" x2="2160" y2="3280" stroke="rgba(255,110,60,0.08)" />
+        
+        <line x1="240" y1="3520" x2="2160" y2="3520" stroke="rgba(255,110,60,0.08)" />
+        
+      </g>
+    </svg>
+    <div class="line top"></div>
+    <div class="line bottom"></div>
+    <header class="topbar">
+      <div>AUTOFINISHER PREMIUM SERIES</div>
+      <div class="center">affirmation_drop_01</div>
+      <div class="right">RENDERED 2026-03-02</div>
+    </header>
+    <div class="hero">
+      <div class="kicker">AUTOFINISHER PREMIUM SERIES</div>
+      <div class="headline-wrap"><h1 class="headline"><span class="hl">YOU'RE</span><br/><span class="pink">ABSOLUTELY</span><br/><span class="hot">RIGHT!</span></h1></div>
+      <div class="subheadline">Statement poster for modern interior drop</div>
+    </div>
+    <footer class="footer">
+      <div>EDITION 01</div>
+      <div class="center">MATTE BLACK / NEON GRID / DISPLAY PRINT</div>
+      <div class="right">CODE AF-001</div>
+    </footer>
+  </section>
+</body>
+</html>

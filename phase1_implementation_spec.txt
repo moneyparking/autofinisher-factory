@@ -1,0 +1,580 @@
+PHASE 1 IMPLEMENTATION SPECIFICATION — RENDER ENGINE
+
+Project:
+autofinisher-factory
+
+Objective:
+Build the first production-grade implementation blueprint for a new deterministic poster render engine based on HTML/CSS/SVG + Playwright, replacing Pillow as the primary creative engine.
+
+This specification is intentionally narrow. Phase 1 is not a full platform rebuild. It is the minimum clean architecture needed to produce one materially superior premium poster family at 4K quality on our Ubuntu VPS.
+
+==================================================
+1. PHASE 1 GOAL
+==================================================
+
+Primary goal:
+Create a new render_engine/ subsystem that can render premium poster masters deterministically from structured JSON payloads into 4K PNG images.
+
+Phase 1 success means:
+- one stable renderer exists
+- one canonical payload format exists
+- two premium style directions are supported in the architecture
+- at least one style can be rendered end-to-end at 4K PNG quality
+- output is deterministic and cacheable
+- downstream mockup generation can consume the resulting PNG master
+
+Non-goals for Phase 1:
+- no Figma runtime integration
+- no runtime generative image API dependency
+- no multi-tenant service layer
+- no browser-based GUI editor
+- no dynamic style marketplace
+- no advanced analytics dashboard yet
+
+==================================================
+2. DIRECTORY TREE
+==================================================
+
+Planned directory structure:
+
+/home/agent/autofinisher-factory/
+└── render_engine/
+    ├── README.md
+    ├── package.json
+    ├── package-lock.json
+    ├── requirements.txt
+    ├── render_poster.py
+    ├── render_cli.py
+    ├── playwright_runner.js
+    ├── payloads/
+    │   ├── sample_swiss_brutalism.json
+    │   └── sample_retro_neon.json
+    ├── templates/
+    │   ├── base/
+    │   │   ├── base.html
+    │   │   ├── reset.css
+    │   │   └── tokens.css
+    │   ├── swiss_brutalism/
+    │   │   ├── poster.html
+    │   │   ├── poster.css
+    │   │   └── poster.js
+    │   └── retro_neon_grid/
+    │       ├── poster.html
+    │       ├── poster.css
+    │       └── poster.js
+    ├── assets/
+    │   ├── fonts/
+    │   │   ├── inter/
+    │   │   ├── space_grotesk/
+    │   │   ├── syne/
+    │   │   └── jetbrains_mono/
+    │   ├── textures/
+    │   │   ├── film_grain/
+    │   │   ├── paper/
+    │   │   ├── halftone/
+    │   │   └── scanlines/
+    │   ├── svg/
+    │   │   ├── grids/
+    │   │   ├── meshes/
+    │   │   ├── noise/
+    │   │   └── masks/
+    │   └── backgrounds/
+    │       ├── deterministic/
+    │       └── curated/
+    ├── schemas/
+    │   ├── render_payload.schema.json
+    │   ├── style_tokens.schema.json
+    │   └── output_profile.schema.json
+    ├── output/
+    │   ├── masters/
+    │   ├── previews/
+    │   ├── thumbnails/
+    │   └── debug/
+    ├── qa/
+    │   ├── visual_checklist.md
+    │   ├── golden_samples/
+    │   ├── snapshots/
+    │   └── render_reports/
+    └── utils/
+        ├── font_loader.py
+        ├── payload_validator.py
+        ├── cache_key.py
+        └── output_naming.py
+
+Directory responsibilities:
+- templates/: actual renderable visual systems
+- assets/: locked design assets used by templates
+- schemas/: data contracts between factory modules and renderer
+- payloads/: reference fixtures for testing and QA
+- output/: renderer products and debug artifacts
+- qa/: acceptance snapshots and regression artifacts
+- utils/: deterministic support functions
+
+==================================================
+3. RENDER FLOW
+==================================================
+
+Phase 1 render flow:
+
+1. Upstream module prepares structured payload JSON.
+2. payload_validator.py validates payload against render_payload.schema.json.
+3. render_cli.py receives:
+   - payload path or inline JSON
+   - template_id
+   - output profile
+4. render_poster.py normalizes payload and computes cache key.
+5. Jinja2 injects payload into the target HTML template.
+6. Playwright launches headless Chromium locally on VPS.
+7. Chromium renders the poster scene at fixed viewport dimensions.
+8. Render output is exported as 4K PNG master.
+9. Optional derivative exports:
+   - preview WebP
+   - marketplace JPG
+10. Metadata and QA report are saved alongside the output.
+
+Determinism rule:
+Same template_id + template_version + payload content + output profile + asset versions must produce the same output file and cache key.
+
+==================================================
+4. JSON PAYLOAD CONTRACT
+==================================================
+
+Canonical payload file:
+render_payload.schema.json
+
+Payload shape:
+
+{
+  "schema_version": "1.0",
+  "template_id": "retro_neon_grid",
+  "template_version": "1.0.0",
+  "render_mode": "master",
+  "content": {
+    "headline": "YOU'RE ABSOLUTELY RIGHT!",
+    "subheadline": "Statement poster for modern interior drop",
+    "kicker": "AUTOFINISHER PREMIUM SERIES",
+    "body": "Optional short supporting copy.",
+    "footer_left": "EDITION 01",
+    "footer_center": "MATTE BLACK / NEON GRID / DISPLAY PRINT",
+    "footer_right": "CODE AF-001"
+  },
+  "style": {
+    "family": "retro_neon_grid",
+    "palette_id": "ember_signal",
+    "font_pack": "space_grotesk_jetbrains_mono",
+    "background_mode": "svg_grid_gradient",
+    "texture_pack": ["film_grain_soft", "scanlines_subtle"],
+    "accent_mode": "glow_high",
+    "density": "medium",
+    "alignment": "center",
+    "case_mode": "preserve"
+  },
+  "layout": {
+    "headline_max_lines": 3,
+    "safe_margin_ratio": 0.08,
+    "vertical_anchor": "center",
+    "headline_width_ratio": 0.82,
+    "overflow_strategy": "scale_down_then_track_tighter",
+    "min_font_px": 84,
+    "max_font_px": 420
+  },
+  "output": {
+    "profile_id": "master_4k_vertical",
+    "width": 2160,
+    "height": 3840,
+    "format": "png",
+    "dpi": 300,
+    "background": "opaque"
+  },
+  "metadata": {
+    "keyword": "you are absolutely right poster",
+    "collection_id": "affirmation_drop_01",
+    "edition_id": "edition_01",
+    "source": "factory_pipeline",
+    "created_at": "2026-03-02T00:00:00Z"
+  }
+}
+
+Required top-level sections:
+- schema_version
+- template_id
+- template_version
+- content
+- style
+- layout
+- output
+- metadata
+
+Content rules:
+- headline: required
+- subheadline: optional
+- kicker: optional
+- footer fields: optional but recommended for series consistency
+- body: optional and style-dependent
+
+Layout rules:
+- renderer must never silently crop headline text
+- renderer must apply overflow strategy deterministically
+- renderer must reject payload if text cannot fit above min_font_px
+
+Output profiles for Phase 1:
+- master_4k_vertical = 2160 x 3840 PNG
+- preview_vertical = 1080 x 1920 WebP
+- thumb_square = 1200 x 1200 JPG
+
+==================================================
+5. STYLE TOKEN MODEL
+==================================================
+
+We need a strict token system so styles remain brand-consistent and testable.
+
+Style token categories:
+- palette_id
+- font_pack
+- background_mode
+- texture_pack
+- accent_mode
+- density
+- alignment
+- contrast_mode
+- border_mode
+- grid_mode
+
+Example palette tokens:
+- swiss_obsidian
+- bone_signal
+- ember_signal
+- acid_terminal
+- chrome_oxide
+
+Example font packs:
+- inter_space_grotesk
+- syne_jetbrains_mono
+- grotesk_mono_editorial
+
+Rule:
+Templates consume tokens. Payloads do not directly hardcode arbitrary CSS values except where explicitly allowed.
+
+This keeps:
+- caching clean
+- branding stable
+- A/B testing measurable
+- regressions easier to isolate
+
+==================================================
+6. BUSINESS LAYER — REQUIRED STYLE DIRECTIONS
+==================================================
+
+Phase 1 must support architecture for at least two premium visual families.
+
+A. Swiss Typography / Brutalism
+
+Business use-case:
+Best fit for IT, DevOps, engineering, startup, AI, systems, productivity, and editorial-intellectual niches.
+
+Visual characteristics:
+- strict modular grid
+- large grotesk typography
+- high negative space
+- asymmetry used intentionally
+- minimal texture
+- black / white / bone / red / signal orange accents
+- strong information hierarchy
+- optional monospace metadata rails
+
+Template requirements:
+- grid overlay support
+- left or center alignment modes
+- controlled oversized headline scaling
+- editorial footer system
+- bold kicker band support
+
+Recommended font direction:
+- Inter
+- Space Grotesk
+- Sora
+- JetBrains Mono for metadata
+
+B. Retro-Futurist / Neon Grid
+
+Business use-case:
+Best fit for affirmation posters, statement art, synthwave, gamer/tech decor, youth-oriented interiors, and emotionally charged hero products.
+
+Visual characteristics:
+- dark matte background
+- luminous headline treatment
+- SVG grid or horizon system
+- glow layers
+- procedural gradient fields
+- scanlines, bloom, light distortion used with restraint
+- premium retro-tech feel, not meme aesthetic
+
+Template requirements:
+- center-dominant hero layout
+- optional multi-layer glow stack
+- vector grid background module
+- controlled texture overlays
+- strong safe-area logic to preserve thumbnail readability
+
+Recommended font direction:
+- Space Grotesk
+- Syne
+- Eurostile-like licensed alternative if added later
+- JetBrains Mono / IBM Plex Mono for metadata
+
+Phase 1 rule:
+Even if only one family is fully implemented first, the directory structure, schema, and token system must natively support both.
+
+==================================================
+7. DEPENDENCIES — UBUNTU VPS
+==================================================
+
+System packages:
+- nodejs
+- npm
+- python3
+- python3-venv
+- python3-pip
+- chromium-browser or Playwright-managed Chromium dependencies
+- fonts-liberation
+- libnss3
+- libatk1.0-0
+- libatk-bridge2.0-0
+- libcups2
+- libxkbcommon0
+- libxcomposite1
+- libxdamage1
+- libxfixes3
+- libxrandr2
+- libgbm1
+- libasound2
+- libpango-1.0-0
+- libcairo2
+- libatspi2.0-0
+- libgtk-3-0
+
+Node dependencies:
+- playwright
+- jinja2 is Python-side, not Node-side
+- optional: sharp for derivative conversion if needed later
+
+Python dependencies:
+- jinja2
+- pydantic or jsonschema
+- pillow (post-processing only, not primary rendering)
+- pathlib / standard library helpers
+
+Rationale:
+- Python remains orchestration layer because current factory already uses Python heavily.
+- Node + Playwright handles browser rendering because Chromium is the premium core renderer.
+
+==================================================
+8. EXECUTION CONTRACT
+==================================================
+
+Phase 1 CLI contract:
+
+render_cli.py should eventually accept inputs like:
+- --payload /path/to/payload.json
+- --template retro_neon_grid
+- --output-profile master_4k_vertical
+- --out /path/to/output.png
+- --debug
+
+Expected outputs:
+- master PNG
+- preview derivative optional
+- sidecar JSON metadata report
+- debug screenshot optional
+
+Sidecar metadata report should contain:
+- cache_key
+- template_id
+- template_version
+- render_start_timestamp
+- render_end_timestamp
+- total_render_ms
+- output_dimensions
+- asset_versions
+- overflow_actions_taken
+- validation_status
+
+==================================================
+9. SLA TARGETS
+==================================================
+
+Phase 1 operational SLA targets:
+
+Render performance:
+- 4K master render target: <= 4000 ms median on VPS
+- hard upper bound for successful render: <= 8000 ms
+- preview derivative generation: <= 1500 ms additional
+
+Reliability:
+- payload validation failure rate must be explicit, never silent
+- renderer should fail fast on missing assets or invalid template_id
+- deterministic rerender success rate target: 99%+ for identical payloads
+
+Quality:
+- no cropped headline text
+- no overlapping text blocks
+- no asset fallback without explicit warning
+- no template rendering with missing font pack without logged hard failure
+
+==================================================
+10. QA REQUIREMENTS
+==================================================
+
+A. Functional QA
+- renderer accepts valid payload and outputs file
+- invalid payload fails with explicit reason
+- missing font asset fails loudly
+- missing texture or SVG asset fails loudly
+- wrong template_id fails loudly
+
+B. Layout QA
+- headline remains inside safe area
+- subheadline and footer do not overlap hero content
+- long strings trigger deterministic overflow strategy
+- minimum font threshold is respected
+
+C. Visual QA
+- output resolution exactly matches profile
+- no blurry typography in master export
+- no broken SVG backgrounds
+- no missing textures or masks
+- contrast passes manual readability review at thumbnail scale
+
+D. Regression QA
+- each template has golden sample payloads
+- renderer produces snapshot files for comparison
+- visual drift is reviewed before template version bump
+
+E. Marketplace QA
+- hero text remains legible at approximately 240 px thumbnail height
+- composition remains attractive in vertical crop
+- metadata does not overpower headline
+
+==================================================
+11. OVERFLOW AND TEXT SAFETY RULES
+==================================================
+
+This is critical. Premium templates die when text handling is sloppy.
+
+Rules:
+- line-break engine attempts smart wrapping first
+- if content exceeds max width, renderer scales headline down
+- if still too wide, tracking tightens within allowed range
+- if still not viable, renderer fails with explicit overflow error
+- renderer must not auto-truncate premium product headlines without explicit payload instruction
+
+Allowed overflow strategies in Phase 1:
+- scale_down_then_track_tighter
+- scale_down_only
+- fail_hard
+
+Disallowed for Phase 1:
+- silent clipping
+- ellipsis on hero headline
+- arbitrary font substitution
+
+==================================================
+12. CACHE STRATEGY
+==================================================
+
+Cache key formula should include:
+- template_id
+- template_version
+- normalized payload hash
+- output profile
+- font pack version
+- asset manifest version
+
+Cache behavior:
+- if cache hit exists and force flag is false, reuse output
+- if template version changes, cache invalidates automatically
+- if asset manifest changes, cache invalidates automatically
+
+Why this matters:
+- reduces VPS compute waste
+- keeps reruns cheap
+- makes large-scale generation economically sane
+
+==================================================
+13. PHASE 1 ACCEPTANCE CRITERIA
+==================================================
+
+Phase 1 is accepted only if all conditions below are true:
+
+1. render_engine/ exists with clean modular structure.
+2. One canonical JSON payload schema is documented and validated.
+3. Playwright-based renderer can export a 2160x3840 PNG master.
+4. One premium template renders successfully from payload.
+5. Architecture supports both Swiss/Brutalism and Retro/Neon families.
+6. Long headlines are handled without broken layout.
+7. Output is deterministic and cacheable.
+8. Output can be consumed downstream by mockup generation.
+9. Golden sample QA artifacts exist.
+10. Render metadata report is produced for each successful render.
+
+==================================================
+14. ROLLOUT ORDER
+==================================================
+
+Recommended implementation order:
+
+Step 1:
+Create render_engine/ skeleton and install dependencies.
+
+Step 2:
+Implement render_payload.schema.json and validator.
+
+Step 3:
+Implement one base HTML template system with Jinja2 injection.
+
+Step 4:
+Implement Playwright renderer and export 4K PNG master.
+
+Step 5:
+Implement first flagship template:
+retro_neon_grid or swiss_brutalism.
+
+Step 6:
+Add output profiles and sidecar render report.
+
+Step 7:
+Create golden sample fixtures and QA snapshot flow.
+
+Step 8:
+Connect downstream mockup pipeline to new PNG master.
+
+Step 9:
+Only after renderer is stable, add second style family.
+
+==================================================
+15. FINAL DECISION FOR PHASE 1
+==================================================
+
+Core renderer:
+HTML/CSS/SVG + Playwright
+
+Orchestration layer:
+Python
+
+Template injection:
+Jinja2
+
+Validation:
+jsonschema or pydantic
+
+Premium styles baked into architecture:
+- swiss_brutalism
+- retro_neon_grid
+
+Primary output:
+4K PNG master poster
+
+Design principle:
+The renderer is not an image trick pipeline. It is a deterministic design system that happens to export images.
+
+That is the Phase 1 blueprint.
