@@ -9,3 +9,15 @@ venv/
 ready_to_publish/
 *.json
 keywords.txt
+
+# Автоматически сгенерированный мусор
+*.new
+*.log
+render_engine/output/
+room_template*.jpg
+street_template.jpg
+assets/app_icon.jpg
+
+# Текстовые отчеты
+daily_report.txt
+published_history.txt
