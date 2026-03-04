@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "seed": "digital planner",
+  "limit": 25,
+  "accept_threshold": 55,
+  "locale": "en",
+  "notes": "Canonical seed request for niche_profit_engine v1."
+}

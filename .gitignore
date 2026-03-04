@@ -21,3 +21,23 @@ assets/app_icon.jpg
 # Текстовые отчеты
 daily_report.txt
 published_history.txt
+
+# batch/runtime artifacts
+archive/
+debug_ebay_response.html
+niche_engine/accepted/
+publish_packets/
+public_html/
+cron.log
+factory.db
+latest_*.json
+gumroad_payload.json
+seed_request.json
+seeds/seed_request.json
+transport_test.py
+
+# allow tracked niche contracts
+!niche_engine/contracts/
+!niche_engine/contracts/niche_candidate.json
+!niche_engine/contracts/niche_package.json
+!niche_engine/contracts/seed_request.json

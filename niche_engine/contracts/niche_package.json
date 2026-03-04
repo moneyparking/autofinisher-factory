@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "query": "adhd digital planner for goodnotes",
+  "slug": "adhd-digital-planner-for-goodnotes",
+  "source_seed": "digital planner",
+  "semantic_atoms": {
+    "format": "planner",
+    "audience": "adhd",
+    "problem": null,
+    "aesthetic": null,
+    "use_case": null,
+    "delivery_mode": "goodnotes",
+    "seasonality": null,
+    "bundle_logic": null
+  },
+  "profitability": {
+    "demand_score": 76,
+    "specificity_score": 78,
+    "competition_score": 50,
+    "profitability_score": 72,
+    "accept_threshold": 55,
+    "accepted": true
+  },
+  "reason_codes": [
+    "contains_seed",
+    "buyer_intent_match",
+    "long_tail_phrase",
+    "competition_stub_v1"
+  ],
+  "creative_mapping": {
+    "product_family": "digital_product",
+    "primary_template_family": "retro_neon_grid",
+    "secondary_template_family": "swiss_brutalism",
+    "render_intent": "premium_publish_ready"
+  },
+  "source": {
+    "provider": "google_suggest",
+    "expansion_query": "digital planner adhd"
+  },
+  "created_at": "2026-03-02T00:00:00Z"
+}
