@@ -11,8 +11,7 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 
-SCRAPERAPI_KEY = "91984a0389f2c1aaaee9876b58098d27"
-SCRAPERAPI_ENDPOINT = "http://api.scraperapi.com"
+from scrape_clients import ScrapeClient
 
 TARGET_STR_THRESHOLD = 50.0
 MIN_ACTIVE_LISTINGS = 10
@@ -20,7 +19,15 @@ MAX_ACTIVE_LISTINGS = 5000
 DELAY_RANGE = (2.0, 5.0)
 REQUEST_TIMEOUT = int(os.getenv("EBAY_SCRAPER_TIMEOUT", "30"))
 MAX_RETRIES = int(os.getenv("EBAY_SCRAPER_MAX_RETRIES", "2"))
+MAX_ELAPSED_S = float(os.getenv("EBAY_SCRAPER_MAX_ELAPSED_S", "20"))
 BACKOFFS = [2, 4]
+EBAY_HTML_PROVIDER = os.getenv("EBAY_SCRAPE_PROVIDER", "scrapedo").strip().lower() or "scrapedo"
+EBAY_HTML_CLIENT = ScrapeClient(
+    provider=EBAY_HTML_PROVIDER,
+    timeout_s=REQUEST_TIMEOUT,
+    max_retries=MAX_RETRIES,
+    max_elapsed_s=MAX_ELAPSED_S,
+)
 
 TEST_SEEDS = [
     "adhd digital planner",
@@ -90,35 +97,12 @@ def build_ebay_search_url(keyword: str, sold: bool = False) -> str:
 
 
 def fetch_ebay_html(url: str) -> str:
-    params = {
-        "api_key": SCRAPERAPI_KEY,
-        "url": url,
-        "keep_headers": "true",
-    }
     headers = {
         "User-Agent": "Mozilla/5.0",
         "Accept-Language": "en-US,en;q=0.9",
     }
-    last_exc: Exception | None = None
-    for attempt in range(MAX_RETRIES + 1):
-        try:
-            response = requests.get(
-                SCRAPERAPI_ENDPOINT,
-                params=params,
-                headers=headers,
-                timeout=REQUEST_TIMEOUT,
-            )
-            response.raise_for_status()
-            return response.text
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as exc:
-            last_exc = exc
-            if attempt < MAX_RETRIES:
-                time.sleep(BACKOFFS[min(attempt, len(BACKOFFS) - 1)])
-                continue
-            raise
-    if last_exc is not None:
-        raise last_exc
-    return ""
+    html, _meta = EBAY_HTML_CLIENT.fetch_html_with_meta(url=url, headers=headers)
+    return html
 
 
 def extract_count_from_ebay(html: str) -> int:

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from fms_decision import aggregate_data_quality
 from fms_reference import compute_reference_ratios, etsy_quality_band_for
 
 BASE_DIR = Path("/home/agent/autofinisher-factory")
@@ -254,6 +255,10 @@ def build_win_card(item: dict[str, Any], batch_id: str, scraping_profile: str = 
                 "candidate_count": int(item.get("google_candidate_count") or 0),
                 "status": str(item.get("google_status") or item.get("seed_status") or "unknown"),
             },
+            "decision_type": (item.get("decision_payload") or {}).get("decision_type"),
+            "reason_code": (item.get("decision_payload") or {}).get("reason_code"),
+            "data_quality": item.get("data_quality") or aggregate_data_quality(item.get("source_quality") or {}),
+            "source_quality": item.get("source_quality") or {},
             "validation_source_batch": batch_id,
             "scraping_profile": scraping_profile,
         },
@@ -298,6 +303,9 @@ def validated_record(item: dict[str, Any], batch_id: str, decision: str, reason:
         "active_count": int(metrics.get("active_listings") or 0),
         "sold_count": int(metrics.get("sold_listings") or 0),
     }
+    decision_payload = item.get("decision_payload") or {}
+    source_quality = item.get("source_quality") or {}
+    data_quality = item.get("data_quality") or aggregate_data_quality(source_quality)
     fms_score = float(item.get("fms_score") or ranking.get("monetization_score") or 0.0)
     return {
         "recorded_at": now_iso(),
@@ -306,6 +314,7 @@ def validated_record(item: dict[str, Any], batch_id: str, decision: str, reason:
         "niche_keyword": niche_keyword,
         "niche": niche_keyword,
         "vertical": item.get("vertical") or ranking.get("vertical"),
+        "bucket": item.get("bucket"),
         "niche_family": family["niche_family"],
         "fms_score": fms_score,
         "etsy_metrics": etsy_metrics,
@@ -313,12 +322,20 @@ def validated_record(item: dict[str, Any], batch_id: str, decision: str, reason:
         "etsy_quality_band": etsy_quality_band_for(etsy_metrics.get("digital_share")),
         "vs_reference": compute_reference_ratios(fms_score, ebay_metrics),
         "status": decision,
+        "decision_type": decision_payload.get("decision_type"),
         "reason": reason,
+        "reason_code": decision_payload.get("reason_code") or reason,
+        "reason_detail": decision_payload.get("reason_detail") or "",
+        "source_quality": source_quality,
+        "data_quality": data_quality,
         "validation": {
             "batch_id": batch_id,
             "scraping_profile": item.get("scraping_profile") or "fast_v1",
             "status": decision,
+            "decision_type": decision_payload.get("decision_type"),
             "reason": reason,
+            "reason_code": decision_payload.get("reason_code") or reason,
+            "reason_detail": decision_payload.get("reason_detail") or "",
             "niche_id": niche_id,
             "validated_path": None,
             "win_card_path": None,
@@ -339,6 +356,7 @@ def validated_record(item: dict[str, Any], batch_id: str, decision: str, reason:
             "google_queries": item.get("google_queries") or [],
             "google_candidate_count": int(item.get("google_candidate_count") or 0),
             "seed_status": item.get("seed_status"),
+            "bucket": item.get("bucket"),
             "intel": intel,
             "ranking": ranking,
             "metrics": metrics,

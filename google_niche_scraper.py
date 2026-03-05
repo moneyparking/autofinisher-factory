@@ -11,13 +11,24 @@ from urllib.parse import quote_plus
 
 import requests
 
+from network_retry import fetch_with_retry
+from scrape_clients import ScrapeClient, build_google_url
+
 BASE_DIR = Path("/home/agent/autofinisher-factory")
 DEFAULT_ENGINE = os.getenv("GOOGLE_SERP_ENGINE", "searchapi").strip().lower()
 GOOGLE_SERP_API_KEY = os.getenv("GOOGLE_SERP_API_KEY", "").strip()
-SCRAPERAPI_KEY = os.getenv("SCRAPERAPI_KEY", "91984a0389f2c1aaaee9876b58098d27").strip()
-TIMEOUT = int(os.getenv("GOOGLE_SCRAPER_TIMEOUT", "30"))
-MAX_RETRIES = int(os.getenv("GOOGLE_SCRAPER_MAX_RETRIES", "2"))
+TIMEOUT = int(os.getenv("GOOGLE_SCRAPER_TIMEOUT", "10"))
+MAX_RETRIES = int(os.getenv("GOOGLE_SCRAPER_MAX_RETRIES", "1"))
+MAX_ELAPSED_S = float(os.getenv("GOOGLE_SCRAPER_MAX_ELAPSED_S", "15"))
 BACKOFFS = [2, 4]
+GOOGLE_HTML_PROVIDER = os.getenv("GOOGLE_SCRAPE_PROVIDER", "scrapingbee").strip().lower() or "scrapingbee"
+SCRAPINGBEE_GOOGLE_ENDPOINT = os.getenv("SCRAPINGBEE_GOOGLE_ENDPOINT", "https://app.scrapingbee.com/api/v1/google").strip() or "https://app.scrapingbee.com/api/v1/google"
+GOOGLE_HTML_CLIENT = ScrapeClient(
+    provider=GOOGLE_HTML_PROVIDER,
+    timeout_s=TIMEOUT,
+    max_retries=MAX_RETRIES,
+    max_elapsed_s=MAX_ELAPSED_S,
+)
 USE_PAA = os.getenv("GOOGLE_FAST_USE_PAA", "0").strip().lower() in {"1", "true", "yes"}
 DIGITAL_TOKENS = ["planner", "printable", "template", "notion", "spreadsheet", "checklist", "binder", "tracker", "journal"]
 
@@ -26,60 +37,108 @@ def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", str(text or "").strip())
 
 
-def fetch_serp(query: str, country: str = "US", language: str = "en", page: int = 1) -> dict[str, Any]:
+def fetch_serp(query: str, country: str = "US", language: str = "en", page: int = 1) -> tuple[dict[str, Any], dict[str, Any]]:
     headers = {"User-Agent": "Mozilla/5.0", "Accept-Language": f"{language}-{country},{language};q=0.9"}
-    last_exc: Exception | None = None
-    for attempt in range(MAX_RETRIES + 1):
-        try:
-            if GOOGLE_SERP_API_KEY:
-                if DEFAULT_ENGINE == "serpapi":
-                    params = {
-                        "engine": "google",
-                        "q": query,
-                        "api_key": GOOGLE_SERP_API_KEY,
-                        "gl": country,
-                        "hl": language,
-                        "start": (page - 1) * 10,
-                    }
-                    resp = requests.get("https://serpapi.com/search.json", params=params, timeout=TIMEOUT)
-                    resp.raise_for_status()
-                    return resp.json()
 
-                params = {
-                    "engine": "google",
-                    "q": query,
-                    "api_key": GOOGLE_SERP_API_KEY,
-                    "gl": country,
-                    "hl": language,
-                    "start": (page - 1) * 10,
-                }
-                resp = requests.get("https://www.searchapi.io/api/v1/search", params=params, timeout=TIMEOUT)
+    if GOOGLE_SERP_API_KEY:
+        if DEFAULT_ENGINE == "serpapi":
+            params = {
+                "engine": "google",
+                "q": query,
+                "api_key": GOOGLE_SERP_API_KEY,
+                "gl": country,
+                "hl": language,
+                "start": (page - 1) * 10,
+            }
+
+            def _do() -> dict[str, Any]:
+                resp = requests.get("https://serpapi.com/search.json", params=params, timeout=TIMEOUT)
                 resp.raise_for_status()
                 return resp.json()
 
-            params = {
-                "api_key": SCRAPERAPI_KEY,
-                "url": f"https://www.google.com/search?q={quote_plus(query)}&hl={language}&gl={country}",
-                "keep_headers": "true",
-            }
-            resp = requests.get("http://api.scraperapi.com", params=params, headers=headers, timeout=TIMEOUT)
+            data, meta = fetch_with_retry(
+                _do,
+                max_retries=MAX_RETRIES,
+                backoffs=BACKOFFS,
+                retry_on=(requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.HTTPError),
+                stage="request",
+                warnings_prefix="google",
+                max_elapsed_s=MAX_ELAPSED_S,
+            )
+            if data is None:
+                raise RuntimeError(meta.get("error") or "google_serp_failed")
+            return data, meta
+
+        params = {
+            "engine": "google",
+            "q": query,
+            "api_key": GOOGLE_SERP_API_KEY,
+            "gl": country,
+            "hl": language,
+            "start": (page - 1) * 10,
+        }
+
+        def _do2() -> dict[str, Any]:
+            resp = requests.get("https://www.searchapi.io/api/v1/search", params=params, timeout=TIMEOUT)
             resp.raise_for_status()
-            html = resp.text
-            titles = re.findall(r"<h3[^>]*>(.*?)</h3>", html, flags=re.I | re.S)
-            cleaned_titles = [re.sub(r"<[^>]+>", "", t).strip() for t in titles if t.strip()]
-            organic = []
-            for idx, title in enumerate(cleaned_titles[:10], start=1):
-                organic.append({"title": title, "link": None, "snippet": ""})
-            return {"organic_results": organic, "related_searches": [], "people_also_ask": []}
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as exc:
-            last_exc = exc
-            if attempt < MAX_RETRIES:
-                time.sleep(BACKOFFS[min(attempt, len(BACKOFFS) - 1)])
-                continue
-            raise
-    if last_exc is not None:
-        raise last_exc
-    return {"organic_results": [], "related_searches": [], "people_also_ask": []}
+            return resp.json()
+
+        data2, meta2 = fetch_with_retry(
+            _do2,
+            max_retries=MAX_RETRIES,
+            backoffs=BACKOFFS,
+            retry_on=(requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.HTTPError),
+            stage="request",
+            warnings_prefix="google",
+            max_elapsed_s=MAX_ELAPSED_S,
+        )
+        if data2 is None:
+            raise RuntimeError(meta2.get("error") or "google_serp_failed")
+        return data2, meta2
+
+    if GOOGLE_HTML_PROVIDER == "scrapingbee":
+        api_key = os.getenv("SCRAPINGBEE_API_KEY", "").strip()
+        params = {
+            "api_key": api_key,
+            "search": query,
+            "language": language,
+        }
+
+        def _do_scrapingbee_google() -> dict[str, Any]:
+            resp = requests.get(SCRAPINGBEE_GOOGLE_ENDPOINT, params=params, headers=headers, timeout=TIMEOUT)
+            resp.raise_for_status()
+            return resp.json()
+
+        data3, meta3 = fetch_with_retry(
+            _do_scrapingbee_google,
+            max_retries=MAX_RETRIES,
+            backoffs=BACKOFFS,
+            retry_on=(requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.HTTPError),
+            stage="request",
+            warnings_prefix="google",
+            max_elapsed_s=MAX_ELAPSED_S,
+        )
+        if data3 is None:
+            raise RuntimeError(meta3.get("error") or "google_scrapingbee_failed")
+
+        organic_results = data3.get("organic_results") or data3.get("results") or []
+        related_searches = data3.get("related_searches") or []
+        people_also_ask = data3.get("people_also_ask") or data3.get("paa") or []
+        return {
+            "organic_results": organic_results,
+            "related_searches": related_searches,
+            "people_also_ask": people_also_ask,
+        }, meta3
+
+    google_url = build_google_url(query, country=country, language=language)
+    html, meta3 = GOOGLE_HTML_CLIENT.fetch_html_with_meta(url=google_url, headers=headers)
+
+    titles = re.findall(r"<h3[^>]*>(.*?)</h3>", html, flags=re.I | re.S)
+    cleaned_titles = [re.sub(r"<[^>]+>", "", t).strip() for t in titles if t.strip()]
+    organic = []
+    for idx, title in enumerate(cleaned_titles[:10], start=1):
+        organic.append({"title": title, "link": None, "snippet": ""})
+    return {"organic_results": organic, "related_searches": [], "people_also_ask": []}, meta3
 
 
 def has_digital_pattern(text: str) -> bool:
@@ -158,12 +217,15 @@ def scan_google_niches(queries: list[str], country: str = "US", language: str = 
             "total_etsy_results": 0,
             "unique_etsy_domains": set(),
             "pages_scanned": 0,
+            "request_meta": [],
         }
         for page in range(1, max_pages + 1):
             try:
-                serp_json = fetch_serp(q, country=country, language=language, page=page)
+                serp_json, req_meta = fetch_serp(q, country=country, language=language, page=page)
+                aggregated["request_meta"].append({"page": page, "meta": req_meta})
             except Exception as exc:
                 print(f"[google_niche_scraper] fetch failed for query='{q}' page={page}: {exc}")
+                aggregated["request_meta"].append({"page": page, "meta": {"final_status": "failed", "error": str(exc)}})
                 break
             parsed = parse_serp_to_niches(serp_json)
             aggregated["organic"].extend(parsed["organic"])
@@ -180,6 +242,7 @@ def scan_google_niches(queries: list[str], country: str = "US", language: str = 
                 "total_etsy_results": aggregated["total_etsy_results"],
                 "unique_etsy_domains": sorted(aggregated["unique_etsy_domains"]),
             },
+            "request_meta": aggregated["request_meta"],
             "organic": aggregated["organic"],
             "related_searches": aggregated["related_searches"],
             "people_also_ask": aggregated["people_also_ask"],

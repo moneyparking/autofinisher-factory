@@ -13,14 +13,26 @@ from urllib.parse import quote_plus
 import requests
 from bs4 import BeautifulSoup
 
+from network_retry import fetch_with_retry
+from scrape_clients import ScrapeClient
+
 BASE_DIR = Path("/home/agent/autofinisher-factory")
 SELECTORS_PATH = BASE_DIR / "etsy_selectors.json"
-SCRAPERAPI_ENDPOINT = "http://api.scraperapi.com"
-SCRAPERAPI_KEY = os.getenv("SCRAPERAPI_KEY", "91984a0389f2c1aaaee9876b58098d27").strip()
-TIMEOUT = int(os.getenv("ETSY_SCRAPER_TIMEOUT", "30"))
-MAX_RETRIES = int(os.getenv("ETSY_SCRAPER_MAX_RETRIES", "2"))
+TIMEOUT = int(os.getenv("ETSY_SCRAPER_TIMEOUT", "10"))
+MAX_RETRIES = int(os.getenv("ETSY_SCRAPER_MAX_RETRIES", "1"))
+MAX_ELAPSED_S = float(os.getenv("ETSY_SCRAPER_MAX_ELAPSED_S", "15"))
 BACKOFFS = [2, 4]
 FAST_ORDER = os.getenv("ETSY_FAST_ORDER", "most_relevant").strip() or "most_relevant"
+ETSY_HTML_PROVIDER = os.getenv("ETSY_SCRAPE_PROVIDER", "scrapedo").strip().lower() or "scrapedo"
+ETSY_SCRAPEDO_SUPER = os.getenv("ETSY_SCRAPEDO_SUPER", "true").strip().lower() in {"1", "true", "yes"}
+ETSY_SCRAPEDO_GEOCODE = os.getenv("ETSY_SCRAPEDO_GEOCODE", "us").strip() or "us"
+ETSY_SCRAPEDO_RENDER = os.getenv("ETSY_SCRAPEDO_RENDER", "false").strip().lower() in {"1", "true", "yes"}
+ETSY_HTML_CLIENT = ScrapeClient(
+    provider=ETSY_HTML_PROVIDER,
+    timeout_s=TIMEOUT,
+    max_retries=MAX_RETRIES,
+    max_elapsed_s=MAX_ELAPSED_S,
+)
 
 
 def load_selectors() -> dict[str, Any]:
@@ -61,24 +73,25 @@ def parse_rating(text: str) -> float | None:
         return None
 
 
-def scraperapi_fetch(url: str) -> str:
-    params = {"api_key": SCRAPERAPI_KEY, "url": url, "keep_headers": "true"}
+def scraperapi_fetch_with_meta(url: str) -> tuple[str, dict[str, Any]]:
     headers = {"User-Agent": "Mozilla/5.0", "Accept-Language": "en-US,en;q=0.9"}
-    last_exc: Exception | None = None
-    for attempt in range(MAX_RETRIES + 1):
-        try:
-            response = requests.get(SCRAPERAPI_ENDPOINT, params=params, headers=headers, timeout=TIMEOUT)
-            response.raise_for_status()
-            return response.text
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as exc:
-            last_exc = exc
-            if attempt < MAX_RETRIES:
-                time.sleep(BACKOFFS[min(attempt, len(BACKOFFS) - 1)])
-                continue
-            raise
-    if last_exc is not None:
-        raise last_exc
-    return ""
+    extra_params: dict[str, Any] | None = None
+    send_headers = True
+    if ETSY_HTML_PROVIDER == "scrapedo":
+        extra_params = {
+            "super": "true" if ETSY_SCRAPEDO_SUPER else "false",
+            "geoCode": ETSY_SCRAPEDO_GEOCODE,
+            "render": "true" if ETSY_SCRAPEDO_RENDER else "false",
+            "customHeaders": "false",
+        }
+        send_headers = False
+    html, meta = ETSY_HTML_CLIENT.fetch_html_with_meta(url=url, headers=headers, extra_params=extra_params, send_headers=send_headers)
+    return str(html), meta
+
+
+def scraperapi_fetch(url: str) -> str:
+    html, _meta = scraperapi_fetch_with_meta(url)
+    return html
 
 
 def text_by_selector(node, selector: str) -> str:
@@ -121,11 +134,12 @@ def scan_keywords(keywords: list[str], max_listings_per_keyword: int = 24) -> di
     for keyword in keywords:
         url = f"https://www.etsy.com/search?q={quote_plus(keyword)}&order={quote_plus(FAST_ORDER)}"
         try:
-            html = scraperapi_fetch(url)
+            html, req_meta = scraperapi_fetch_with_meta(url)
         except Exception as exc:
             print(f"[etsy_mcp_scraper] scan failed for keyword='{keyword}': {exc}")
             results.append({
                 "keyword": keyword,
+                "request_meta": {"final_status": "failed", "error": str(exc)},
                 "search_metadata": {
                     "total_results": None,
                     "scanned_results": 0,
@@ -172,6 +186,7 @@ def scan_keywords(keywords: list[str], max_listings_per_keyword: int = 24) -> di
         aggregates = aggregate_listings(listings)
         results.append({
             "keyword": keyword,
+            "request_meta": req_meta,
             "search_metadata": {
                 "total_results": total_results,
                 "scanned_results": len(listings),
@@ -187,7 +202,7 @@ def scan_keywords(keywords: list[str], max_listings_per_keyword: int = 24) -> di
 def inspect_listing(url: str, max_reviews: int = 5) -> dict[str, Any]:
     selectors = load_selectors()["etsy_listing"]
     try:
-        html = scraperapi_fetch(url)
+        html, req_meta = scraperapi_fetch_with_meta(url)
     except Exception as exc:
         print(f"[etsy_mcp_scraper] inspect failed for url='{url}': {exc}")
         return {

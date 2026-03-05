@@ -115,20 +115,138 @@ def average_ratio(items: list[dict[str, Any]], key: str) -> float | None:
     return mean(values)
 
 
+def is_reliable_item(item: dict[str, Any]) -> bool:
+    decision_type = str(item.get("decision_type") or (item.get("validation") or {}).get("decision_type") or "")
+    overall_conf = str((item.get("data_quality") or {}).get("overall_confidence") or "high")
+    critical_failed = list((item.get("data_quality") or {}).get("critical_sources_failed") or [])
+    return decision_type in {"market_accept", "market_candidate", "market_reject"} and overall_conf == "high" and not critical_failed
+
+
+
+def build_breakdown(items: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in items:
+        value = str(item.get(key) or (item.get("validation") or {}).get(key) or "unknown")
+        counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items(), key=lambda x: (-x[1], x[0])))
+
+
+
+def build_confidence_breakdown(items: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in items:
+        value = str((item.get("data_quality") or {}).get("overall_confidence") or "unknown")
+        counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items(), key=lambda x: (-x[1], x[0])))
+
+
+
+def build_source_failure_breakdown(items: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in items:
+        source_quality = item.get("source_quality") or {}
+        if not isinstance(source_quality, dict):
+            continue
+        for source_name, payload in source_quality.items():
+            if not isinstance(payload, dict):
+                continue
+            source_status = str(payload.get("source_status") or payload.get("final_status") or "ok")
+            if source_status == "failed":
+                key = f"{source_name}_failed"
+                counts[key] = counts.get(key, 0) + 1
+    return dict(sorted(counts.items(), key=lambda x: (-x[1], x[0])))
+
+
+
+def count_decision_types(items: list[dict[str, Any]]) -> dict[str, int]:
+    totals = {
+        "data_reject_total": 0,
+        "data_uncertain_total": 0,
+        "market_reject_total": 0,
+        "market_candidate_total": 0,
+        "market_accept_total": 0,
+    }
+    for item in items:
+        decision_type = str(item.get("decision_type") or (item.get("validation") or {}).get("decision_type") or "")
+        if decision_type == "data_reject":
+            totals["data_reject_total"] += 1
+        elif decision_type == "data_uncertain":
+            totals["data_uncertain_total"] += 1
+        elif decision_type == "market_reject":
+            totals["market_reject_total"] += 1
+        elif decision_type == "market_candidate":
+            totals["market_candidate_total"] += 1
+        elif decision_type == "market_accept":
+            totals["market_accept_total"] += 1
+    return totals
+
+
+
+def compute_retry_metrics(items: list[dict[str, Any]]) -> dict[str, Any]:
+    network_retry_events_total = 0
+    network_retry_seeds = 0
+    ebay_failed_requests = 0
+    etsy_failed_requests = 0
+    google_failed_requests = 0
+
+    for item in items:
+        source_quality = item.get("source_quality") or {}
+        if not isinstance(source_quality, dict):
+            continue
+        item_had_retry = False
+        for source_name, payload in source_quality.items():
+            if not isinstance(payload, dict):
+                continue
+            retry_count = int(payload.get("retry_count") or 0)
+            network_retry_events_total += retry_count
+            if retry_count > 0:
+                item_had_retry = True
+            source_status = str(payload.get("source_status") or payload.get("final_status") or "ok")
+            if source_status == "failed":
+                if source_name == "ebay":
+                    ebay_failed_requests += 1
+                elif source_name == "etsy":
+                    etsy_failed_requests += 1
+                elif source_name == "google":
+                    google_failed_requests += 1
+        if item_had_retry:
+            network_retry_seeds += 1
+
+    return {
+        "network_retry_events_total": network_retry_events_total,
+        "network_retry_seeds": network_retry_seeds,
+        "source_failure_counts": {
+            "ebay_failed_requests": ebay_failed_requests,
+            "etsy_failed_requests": etsy_failed_requests,
+            "google_failed_requests": google_failed_requests,
+        },
+    }
+
+
+
 def compute_batch_kpi(batch_id: str, seeds_total: int) -> dict[str, Any]:
     items = collect_validated_items(batch_id)
-    winners = [x for x in items if str(x.get("status")) == "winner"]
-    candidates = [x for x in items if str(x.get("status")) == "candidate"]
+    reliable_items = [x for x in items if is_reliable_item(x)]
+    winners = [x for x in reliable_items if str(x.get("status")) == "winner"]
+    candidates = [x for x in reliable_items if str(x.get("status")) == "candidate"]
+    reliable_seed_count = len(reliable_items)
+    retry_metrics = compute_retry_metrics(items)
+    decision_totals = count_decision_types(items)
 
-    winner_yield = (len(winners) / max(1, seeds_total)) if seeds_total >= 0 else 0.0
+    winner_yield_raw = (len(winners) / max(1, seeds_total)) if seeds_total >= 0 else 0.0
+    winner_yield_reliable = (len(winners) / max(1, reliable_seed_count)) if reliable_seed_count > 0 else 0.0
     kpi = {
         "batch_id": batch_id,
         "generated_at": now_iso(),
         "seeds_total": seeds_total,
         "validated_total": len(items),
+        "reliable_validated_total": len(reliable_items),
+        "reliable_seed_count": reliable_seed_count,
         "winners_total": len(winners),
         "candidates_total": len(candidates),
-        "winner_yield": round(winner_yield, 4),
+        "winner_yield": round(winner_yield_raw, 4),
+        "winner_yield_raw": round(winner_yield_raw, 4),
+        "winner_yield_reliable": round(winner_yield_reliable, 4),
         "avg_fms_ratio_winners": average_ratio(winners, "fms_ratio"),
         "avg_str_ratio_winners": average_ratio(winners, "str_ratio"),
         "avg_sold_ratio_winners": average_ratio(winners, "sold_ratio"),
@@ -136,6 +254,13 @@ def compute_batch_kpi(batch_id: str, seeds_total: int) -> dict[str, Any]:
         "avg_fms_ratio_candidates": average_ratio(candidates, "fms_ratio"),
         "avg_sold_ratio_candidates": average_ratio(candidates, "sold_ratio"),
         "avg_str_ratio_candidates": average_ratio(candidates, "str_ratio"),
+        "failure_breakdown": build_breakdown(items, "reason_code"),
+        "confidence_breakdown": build_confidence_breakdown(items),
+        "source_failure_breakdown": build_source_failure_breakdown(items),
+        "network_retry_events_total": retry_metrics["network_retry_events_total"],
+        "network_retry_seeds": retry_metrics["network_retry_seeds"],
+        "source_failure_counts": retry_metrics["source_failure_counts"],
+        **decision_totals,
     }
     return kpi
 
@@ -221,8 +346,21 @@ def build_alerts(kpi: dict[str, Any], history_payload: dict[str, Any]) -> dict[s
     payload = {
         "batch_id": kpi.get("batch_id"),
         "generated_at": now_iso(),
+        "batch_status": kpi.get("batch_status"),
+        "processed_seeds": kpi.get("processed_seeds"),
+        "total_seeds": kpi.get("seeds_total"),
         "kpi": {
             "winner_yield": winner_yield,
+            "winner_yield_raw": safe_float(kpi.get("winner_yield_raw")),
+            "winner_yield_reliable": safe_float(kpi.get("winner_yield_reliable")),
+            "reliable_seed_count": kpi.get("reliable_seed_count"),
+            "network_retry_events_total": kpi.get("network_retry_events_total"),
+            "network_retry_seeds": kpi.get("network_retry_seeds"),
+            "data_reject_total": kpi.get("data_reject_total"),
+            "data_uncertain_total": kpi.get("data_uncertain_total"),
+            "market_reject_total": kpi.get("market_reject_total"),
+            "market_candidate_total": kpi.get("market_candidate_total"),
+            "market_accept_total": kpi.get("market_accept_total"),
             "avg_fms_ratio_winners": avg_fms_ratio_winners,
             "avg_sold_ratio_winners": avg_sold_ratio_winners,
             "avg_fms_ratio_candidates": avg_fms_ratio_candidates,
@@ -238,19 +376,39 @@ def build_alerts(kpi: dict[str, Any], history_payload: dict[str, Any]) -> dict[s
             "fms_history_mean": fms_thresholds.get("mean_hist"),
             "fms_history_std": fms_thresholds.get("std_hist"),
         },
+        "failure_breakdown": kpi.get("failure_breakdown") or {},
+        "confidence_breakdown": kpi.get("confidence_breakdown") or {},
+        "source_failure_breakdown": kpi.get("source_failure_breakdown") or {},
+        "source_failure_counts": kpi.get("source_failure_counts") or {},
         "alerts": alerts,
     }
     return payload
 
 
-def update_batch_monitoring(batch_id: str, seeds_total: int) -> dict[str, Any]:
-    kpi = compute_batch_kpi(batch_id=batch_id, seeds_total=seeds_total)
+def update_batch_monitoring(
+    batch_id: str,
+    *,
+    total_seeds: int,
+    processed_seeds: int,
+    batch_status: str,
+) -> dict[str, Any]:
+    kpi = compute_batch_kpi(batch_id=batch_id, seeds_total=total_seeds)
+    kpi["batch_status"] = str(batch_status)
+    kpi["processed_seeds"] = int(processed_seeds)
+
     history = append_history(kpi)
     alerts = build_alerts(kpi, history)
     summary = {
         "generated_at": now_iso(),
         "batch_id": batch_id,
+        "batch_status": str(batch_status),
+        "processed_seeds": int(processed_seeds),
+        "total_seeds": int(total_seeds),
         "kpi": kpi,
+        "failure_breakdown": kpi.get("failure_breakdown") or {},
+        "confidence_breakdown": kpi.get("confidence_breakdown") or {},
+        "source_failure_breakdown": kpi.get("source_failure_breakdown") or {},
+        "source_failure_counts": kpi.get("source_failure_counts") or {},
         "history_path": str(HISTORY_PATH.resolve()),
         "alerts_path": str(ALERTS_PATH.resolve()),
     }
@@ -267,6 +425,14 @@ def update_batch_monitoring(batch_id: str, seeds_total: int) -> dict[str, Any]:
 if __name__ == "__main__":
     payload = load_json(BASE_DIR / "niche_engine" / "accepted" / "seed_statuses.json", {})
     batch_id = str(payload.get("batch_id") or "manual")
-    seeds_total = int(payload.get("batch_stats", {}).get("total_seeds") or payload.get("seed_count") or 0)
-    result = update_batch_monitoring(batch_id=batch_id, seeds_total=seeds_total)
-    print(json.dumps({"batch_id": batch_id, "alerts": len(result["alerts"].get("alerts", []))}, ensure_ascii=False))
+    batch_status = str(payload.get("batch_status") or payload.get("batch_stats", {}).get("batch_status") or "unknown")
+    processed_seeds = int(payload.get("processed_seeds") or payload.get("seed_count") or 0)
+    total_seeds = int(payload.get("total_seeds") or payload.get("batch_stats", {}).get("total_seeds_planned") or payload.get("batch_stats", {}).get("total_seeds") or processed_seeds)
+
+    result = update_batch_monitoring(
+        batch_id=batch_id,
+        total_seeds=total_seeds,
+        processed_seeds=processed_seeds,
+        batch_status=batch_status,
+    )
+    print(json.dumps({"batch_id": batch_id, "batch_status": batch_status, "alerts": len(result["alerts"].get("alerts", []))}, ensure_ascii=False))
