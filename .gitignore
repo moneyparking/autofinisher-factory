@@ -41,3 +41,5 @@ transport_test.py
 !niche_engine/contracts/niche_candidate.json
 !niche_engine/contracts/niche_package.json
 !niche_engine/contracts/seed_request.json
+
+.env.scrape.local
