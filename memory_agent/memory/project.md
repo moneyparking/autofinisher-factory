@@ -78,15 +78,15 @@
 ## Current observed outputs
 - Accepted niches in latest batch: `1`
 - Built packets in latest batch: `1`
-- Seed statuses tracked: `46`
+- Seed statuses tracked: `2`
 - Ready publish CSV exists: `true`
 
 ## Top current result
 - Top niche: `adhd cleaning checklist`
-- Monetization score: `44.22`
-- Suggested price: `6.76`
-- STR: `23.28`
-- Active listings: `262`
+- Monetization score: `46.11`
+- Suggested price: `6.83`
+- STR: `34.66`
+- Active listings: `176`
 - Sold listings: `61`
 
 ## Commands
