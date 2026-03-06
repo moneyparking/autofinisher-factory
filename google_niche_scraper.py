@@ -23,6 +23,12 @@ MAX_ELAPSED_S = float(os.getenv("GOOGLE_SCRAPER_MAX_ELAPSED_S", "15"))
 BACKOFFS = [2, 4]
 GOOGLE_HTML_PROVIDER = os.getenv("GOOGLE_SCRAPE_PROVIDER", "scrapingbee").strip().lower() or "scrapingbee"
 SCRAPINGBEE_GOOGLE_ENDPOINT = os.getenv("SCRAPINGBEE_GOOGLE_ENDPOINT", "https://app.scrapingbee.com/api/v1/google").strip() or "https://app.scrapingbee.com/api/v1/google"
+
+# scrape.do profile (used when GOOGLE_SCRAPE_PROVIDER=scrapedo)
+GOOGLE_SCRAPEDO_SUPER = os.getenv("GOOGLE_SCRAPEDO_SUPER", "true").strip().lower() in {"1", "true", "yes"}
+GOOGLE_SCRAPEDO_GEOCODE = os.getenv("GOOGLE_SCRAPEDO_GEOCODE", os.getenv("SCRAPEDO_GEOCODE", "us")).strip() or "us"
+GOOGLE_SCRAPEDO_RENDER = os.getenv("GOOGLE_SCRAPEDO_RENDER", os.getenv("SCRAPEDO_RENDER", "false")).strip().lower() in {"1", "true", "yes"}
+
 GOOGLE_HTML_CLIENT = ScrapeClient(
     provider=GOOGLE_HTML_PROVIDER,
     timeout_s=TIMEOUT,
@@ -131,7 +137,19 @@ def fetch_serp(query: str, country: str = "US", language: str = "en", page: int 
         }, meta3
 
     google_url = build_google_url(query, country=country, language=language)
-    html, meta3 = GOOGLE_HTML_CLIENT.fetch_html_with_meta(url=google_url, headers=headers)
+
+    extra_params = None
+    send_headers = True
+    if GOOGLE_HTML_PROVIDER == "scrapedo":
+        extra_params = {
+            "super": "true" if GOOGLE_SCRAPEDO_SUPER else "false",
+            "geoCode": GOOGLE_SCRAPEDO_GEOCODE,
+            "render": "true" if GOOGLE_SCRAPEDO_RENDER else "false",
+            "customHeaders": "false",
+        }
+        send_headers = False
+
+    html, meta3 = GOOGLE_HTML_CLIENT.fetch_html_with_meta(url=google_url, headers=headers, extra_params=extra_params, send_headers=send_headers)
 
     titles = re.findall(r"<h3[^>]*>(.*?)</h3>", html, flags=re.I | re.S)
     cleaned_titles = [re.sub(r"<[^>]+>", "", t).strip() for t in titles if t.strip()]

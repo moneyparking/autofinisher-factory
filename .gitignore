@@ -43,3 +43,10 @@ transport_test.py
 !niche_engine/contracts/seed_request.json
 
 .env.scrape.local
+
+# local secrets
+.env.openai.local
+.env.scrape.local
+
+# local patch artifacts
+patch-1.diff

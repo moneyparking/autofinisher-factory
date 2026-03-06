@@ -29,11 +29,33 @@ from money_niche_hunter.config.settings import (
 from money_niche_hunter.utils.storage import save_json
 
 
+def _ensure_dirs() -> None:
+    Path("money_niche_hunter/data").mkdir(parents=True, exist_ok=True)
+    Path("money_niche_hunter/data/logs").mkdir(parents=True, exist_ok=True)
+
+
+def _limit_seeds(seeds: list[dict]) -> list[dict]:
+    import os
+
+    smoke_flag = os.getenv("MONEY_NICHE_HUNTER_SMOKE", "").strip().lower()
+    max_seeds_raw = os.getenv("MONEY_NICHE_HUNTER_MAX_SEEDS", "").strip()
+    if smoke_flag in {"1", "true", "yes"} and not max_seeds_raw:
+        return seeds[:5]
+    if max_seeds_raw:
+        try:
+            max_seeds = int(max_seeds_raw)
+        except ValueError:
+            max_seeds = 0
+        if max_seeds > 0:
+            return seeds[:max_seeds]
+    return seeds
+
+
 def step_1_collect_seeds() -> list[dict]:
     from money_niche_hunter.core.seeds.collector import collect_seeds
 
     seeds = collect_seeds()
-    return seeds
+    return _limit_seeds(seeds)
 
 
 def step_2_run_batch(seeds: list[dict]) -> list[dict]:
@@ -69,18 +91,22 @@ def step_6_7_analytics() -> dict:
 
 
 def main() -> None:
-    Path("money_niche_hunter/data").mkdir(parents=True, exist_ok=True)
+    _ensure_dirs()
 
     seeds = step_1_collect_seeds()
+    print(f"[money_niche_hunter] collected seeds: {len(seeds)}")
     save_json(seeds, RAW_SEEDS_PATH)
 
     batch = step_2_run_batch(seeds)
+    print(f"[money_niche_hunter] batch rows: {len(batch)}")
     save_json(batch, BATCH_RESULTS_PATH)
 
     filtered, data_bucket = step_3_hard_filter(batch)
+    print(f"[money_niche_hunter] filtered={len(filtered)} data_bucket={len(data_bucket)}")
     save_json(data_bucket, "money_niche_hunter/data/data_bucket.json")
 
     shortlist = step_4_create_shortlist(filtered)
+    print(f"[money_niche_hunter] shortlist={len(shortlist)}")
 
     # Optional Step 5 if OPENAI_API_KEY configured
     try:

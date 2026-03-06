@@ -38,6 +38,9 @@ MIN_STR_FOR_ACCEPT = float(os.getenv("MIN_STR_FOR_ACCEPT", "15.0"))
 MIN_SOLD_FOR_ACCEPT = int(os.getenv("MIN_SOLD_FOR_ACCEPT", "20"))
 MIN_ACTIVE = int(os.getenv("MIN_ACTIVE", "8"))
 MAX_ACTIVE = int(os.getenv("MAX_ACTIVE", "5000"))
+
+# If true, evaluate ONLY the original seed keyword (no Google candidate expansion / no title-derived expansion).
+MONEY_NICHE_HUNTER_DISABLE_EXPANSION = os.getenv("MONEY_NICHE_HUNTER_DISABLE_EXPANSION", "").strip().lower() in {"1", "true", "yes", "on"}
 SCRAPER_RETRIES = int(os.getenv("SCRAPER_RETRIES", "2"))
 SCRAPER_BACKOFF = float(os.getenv("SCRAPER_BACKOFF", "1.0"))
 MAX_ETSY_INSPECT_PER_SEED = int(os.getenv("MAX_ETSY_INSPECT_PER_SEED", "0"))
@@ -91,6 +94,14 @@ def fallback_seed_variants(seed: str) -> list[str]:
 
 
 def collect_google_candidates(seed: str) -> tuple[list[str], str, dict[str, Any]]:
+    # If configured, skip expansion and keep only the original seed.
+    if MONEY_NICHE_HUNTER_DISABLE_EXPANSION:
+        return [normalize(seed)], "skipped", infer_source_quality(
+            source_name="google",
+            source_status="skipped",
+            warnings=["expansion_disabled"],
+        )
+
     try:
         response = scan_google_niches(
             build_google_queries(seed)[:GOOGLE_REQUESTS_PER_SEED_MAX],

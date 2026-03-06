@@ -16,6 +16,31 @@ from bs4 import BeautifulSoup
 from network_retry import fetch_with_retry
 from scrape_clients import ScrapeClient
 
+
+def _redact_secrets(text: str) -> str:
+    """Prevent accidental leakage of provider keys in exception strings."""
+    if not text:
+        return ""
+    redactions = [
+        ("apikey=", "apikey=REDACTED"),
+        ("api_key=", "api_key=REDACTED"),
+        ("token=", "token=REDACTED"),
+    ]
+    out = text
+    for needle, repl in redactions:
+        if needle in out:
+            # replace value until next & or end
+            parts = out.split(needle)
+            rebuilt = [parts[0]]
+            for seg in parts[1:]:
+                if "&" in seg:
+                    _val, rest = seg.split("&", 1)
+                    rebuilt.append(repl + "&" + rest)
+                else:
+                    rebuilt.append(repl)
+            out = "".join(rebuilt)
+    return out
+
 BASE_DIR = Path("/home/agent/autofinisher-factory")
 SELECTORS_PATH = BASE_DIR / "etsy_selectors.json"
 TIMEOUT = int(os.getenv("ETSY_SCRAPER_TIMEOUT", "10"))
@@ -27,6 +52,12 @@ ETSY_HTML_PROVIDER = os.getenv("ETSY_SCRAPE_PROVIDER", "scrapedo").strip().lower
 ETSY_SCRAPEDO_SUPER = os.getenv("ETSY_SCRAPEDO_SUPER", "true").strip().lower() in {"1", "true", "yes"}
 ETSY_SCRAPEDO_GEOCODE = os.getenv("ETSY_SCRAPEDO_GEOCODE", "us").strip() or "us"
 ETSY_SCRAPEDO_RENDER = os.getenv("ETSY_SCRAPEDO_RENDER", "false").strip().lower() in {"1", "true", "yes"}
+
+# ZenRows profile (API params)
+ETSY_ZENROWS_PREMIUM_PROXY = os.getenv("ZENROWS_ETSY_PREMIUM_PROXY", "true").strip().lower() in {"1", "true", "yes"}
+ETSY_ZENROWS_JS_RENDER = os.getenv("ZENROWS_ETSY_JS_RENDER", "false").strip().lower() in {"1", "true", "yes"}
+ETSY_ZENROWS_PROXY_COUNTRY = os.getenv("ZENROWS_PROXY_COUNTRY", "us").strip() or "us"
+
 ETSY_HTML_CLIENT = ScrapeClient(
     provider=ETSY_HTML_PROVIDER,
     timeout_s=TIMEOUT,
@@ -77,6 +108,7 @@ def scraperapi_fetch_with_meta(url: str) -> tuple[str, dict[str, Any]]:
     headers = {"User-Agent": "Mozilla/5.0", "Accept-Language": "en-US,en;q=0.9"}
     extra_params: dict[str, Any] | None = None
     send_headers = True
+
     if ETSY_HTML_PROVIDER == "scrapedo":
         extra_params = {
             "super": "true" if ETSY_SCRAPEDO_SUPER else "false",
@@ -84,7 +116,23 @@ def scraperapi_fetch_with_meta(url: str) -> tuple[str, dict[str, Any]]:
             "render": "true" if ETSY_SCRAPEDO_RENDER else "false",
             "customHeaders": "false",
         }
+        # Let scrape.do handle browser headers.
         send_headers = False
+
+    elif ETSY_HTML_PROVIDER == "zenrows":
+        # ZenRows: send only enabled params. Some accounts reject unsupported options even when set to false.
+        params: dict[str, Any] = {}
+        if ETSY_ZENROWS_PREMIUM_PROXY:
+            params["premium_proxy"] = "true"
+            # proxy_country only makes sense with premium proxies
+            if ETSY_ZENROWS_PROXY_COUNTRY:
+                params["proxy_country"] = ETSY_ZENROWS_PROXY_COUNTRY
+        if ETSY_ZENROWS_JS_RENDER:
+            params["js_render"] = "true"
+        extra_params = params or None
+        # ZenRows works fine with our basic headers.
+        send_headers = True
+
     html, meta = ETSY_HTML_CLIENT.fetch_html_with_meta(url=url, headers=headers, extra_params=extra_params, send_headers=send_headers)
     return str(html), meta
 
@@ -136,10 +184,11 @@ def scan_keywords(keywords: list[str], max_listings_per_keyword: int = 24) -> di
         try:
             html, req_meta = scraperapi_fetch_with_meta(url)
         except Exception as exc:
-            print(f"[etsy_mcp_scraper] scan failed for keyword='{keyword}': {exc}")
+            msg = _redact_secrets(str(exc))
+            print(f"[etsy_mcp_scraper] scan failed for keyword='{keyword}': {msg}")
             results.append({
                 "keyword": keyword,
-                "request_meta": {"final_status": "failed", "error": str(exc)},
+                "request_meta": {"final_status": "failed", "error": msg},
                 "search_metadata": {
                     "total_results": None,
                     "scanned_results": 0,
@@ -204,7 +253,8 @@ def inspect_listing(url: str, max_reviews: int = 5) -> dict[str, Any]:
     try:
         html, req_meta = scraperapi_fetch_with_meta(url)
     except Exception as exc:
-        print(f"[etsy_mcp_scraper] inspect failed for url='{url}': {exc}")
+        msg = _redact_secrets(str(exc))
+        print(f"[etsy_mcp_scraper] inspect failed for url='{url}': {msg}")
         return {
             "listing_id": None,
             "title": "",
@@ -221,6 +271,16 @@ def inspect_listing(url: str, max_reviews: int = 5) -> dict[str, Any]:
         }
     soup = BeautifulSoup(html, "html.parser")
     page_text = normalize(soup.get_text(" ", strip=True))
+
+    # Etsy listing pages often contain a "X sales" badge. Optional but useful.
+    sales_count = None
+    try:
+        matches = re.findall(r"(\d[\d,]*)\s+sales", page_text.lower())
+        if matches:
+            sales_count = max(int(x.replace(",", "")) for x in matches)
+    except Exception:
+        sales_count = None
+
     review_items = soup.select(selectors["review_item"])[:max_reviews]
     reviews = []
 
@@ -241,6 +301,7 @@ def inspect_listing(url: str, max_reviews: int = 5) -> dict[str, Any]:
         "digital_markers": [m for m in selectors["digital_markers"] if m.lower() in page_text.lower()],
         "rating": parse_rating(text_by_selector(soup, selectors["rating"])),
         "reviews_count": parse_int(text_by_selector(soup, selectors["reviews_count"])),
+        "sales_count": sales_count,
         "tags": [normalize(x.get_text(" ", strip=True)) for x in soup.select(selectors["tags"])[:20]],
         "category_path": [],
         "shop": {
