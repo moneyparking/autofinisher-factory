@@ -22,6 +22,12 @@ MAX_RETRIES = int(os.getenv("EBAY_SCRAPER_MAX_RETRIES", "2"))
 MAX_ELAPSED_S = float(os.getenv("EBAY_SCRAPER_MAX_ELAPSED_S", "20"))
 BACKOFFS = [2, 4]
 EBAY_HTML_PROVIDER = os.getenv("EBAY_SCRAPE_PROVIDER", "scrapedo").strip().lower() or "scrapedo"
+
+# scrape.do profile (used when EBAY_SCRAPE_PROVIDER=scrapedo)
+EBAY_SCRAPEDO_SUPER = os.getenv("EBAY_SCRAPEDO_SUPER", "true").strip().lower() in {"1", "true", "yes"}
+EBAY_SCRAPEDO_GEOCODE = os.getenv("EBAY_SCRAPEDO_GEOCODE", os.getenv("SCRAPEDO_GEOCODE", "us")).strip() or "us"
+EBAY_SCRAPEDO_RENDER = os.getenv("EBAY_SCRAPEDO_RENDER", os.getenv("SCRAPEDO_RENDER", "false")).strip().lower() in {"1", "true", "yes"}
+
 EBAY_HTML_CLIENT = ScrapeClient(
     provider=EBAY_HTML_PROVIDER,
     timeout_s=REQUEST_TIMEOUT,
@@ -57,12 +63,33 @@ def dedupe_keep_order(items):
 
 
 def parse_number_fragment(value: str) -> int:
-    digits = re.sub(r"[^\d]", "", value or "")
+    """Parse numeric fragments defensively.
+
+    eBay count headings sometimes include query text; we must avoid accidentally
+    concatenating years (e.g., "2026, 2027, 2028") into huge fake numbers.
+    """
+    raw = (value or "")
+    digits = re.sub(r"[^\d]", "", raw)
     if not digits.isdigit():
         return 0
-    number = int(digits)
-    if 2024 <= number <= 2030:
+
+    # Drop obvious year-only tokens.
+    if len(digits) <= 4:
+        number = int(digits)
+        if 2024 <= number <= 2030:
+            return 0
+        return number
+
+    # If the raw fragment contains multiple year tokens, treat as noise.
+    if re.search(r"\b20(?:2[0-9]|3[0-9])\b", raw) and len(digits) >= 8:
         return 0
+
+    number = int(digits)
+
+    # Hard sanity cap: counts above this are almost certainly parse noise.
+    if number > 10_000_000:
+        return 0
+
     return number
 
 
@@ -101,7 +128,20 @@ def fetch_ebay_html(url: str) -> str:
         "User-Agent": "Mozilla/5.0",
         "Accept-Language": "en-US,en;q=0.9",
     }
-    html, _meta = EBAY_HTML_CLIENT.fetch_html_with_meta(url=url, headers=headers)
+
+    extra_params = None
+    send_headers = True
+    if EBAY_HTML_PROVIDER == "scrapedo":
+        extra_params = {
+            "super": "true" if EBAY_SCRAPEDO_SUPER else "false",
+            "geoCode": EBAY_SCRAPEDO_GEOCODE,
+            "render": "true" if EBAY_SCRAPEDO_RENDER else "false",
+            "customHeaders": "false",
+        }
+        # Let scrape.do handle browser headers.
+        send_headers = False
+
+    html, _meta = EBAY_HTML_CLIENT.fetch_html_with_meta(url=url, headers=headers, extra_params=extra_params, send_headers=send_headers)
     return html
 
 
@@ -131,13 +171,16 @@ def extract_count_from_ebay(html: str) -> int:
             if not text:
                 continue
 
+            # NOTE: Do NOT include a catch-all "any number" pattern here.
+            # These heading elements often contain query/title text with years
+            # or challenge numbers (e.g., "2026 2027 2028", "75 day challenge").
+            # We only accept numbers when they are explicitly tied to result/count tokens.
             direct_patterns = [
                 r"\bshowing\s+[\d][\d,\.\s]*\s*-\s*[\d][\d,\.\s]*\s+of\s+([\d][\d,\.\s]*)\b",
                 r"\b([\d][\d,\.\s]*)\s+results?\s+for\b",
                 r"\b([\d][\d,\.\s]*)\s+results?\s+found\b",
                 r"\b([\d][\d,\.\s]*)\s+results?\b",
                 r"\b([\d][\d,\.\s]*)\s+items?\b",
-                r"\b([\d][\d,\.\s]*)\b",
             ]
             for pattern in direct_patterns:
                 match = re.search(pattern, text, flags=re.IGNORECASE)

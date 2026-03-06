@@ -18,6 +18,7 @@ class ScrapeClient:
       - scraperapi (legacy)
       - scrapedo (api mode)
       - scrapingbee (api mode)
+      - zenrows (api mode)
 
     Use cases in this repo:
       - google SERP HTML fetch
@@ -83,7 +84,9 @@ class ScrapeClient:
         def _do() -> str:
             request_headers = headers if send_headers else None
             resp = requests.get(endpoint, params=params, headers=request_headers, timeout=self.timeout_s)
-            resp.raise_for_status()
+            if resp.status_code >= 400:
+                body = (resp.text or "").replace("\n", " ")[:800]
+                raise requests.HTTPError(f"scrape.do HTTP {resp.status_code}: {body}", response=resp)
             return resp.text
 
         return fetch_with_retry(
@@ -122,6 +125,43 @@ class ScrapeClient:
             max_elapsed_s=self.max_elapsed_s,
         )
 
+    def _zenrows_fetch(
+        self,
+        *,
+        url: str,
+        headers: dict[str, str],
+        extra_params: dict[str, Any] | None = None,
+        send_headers: bool = True,
+    ) -> tuple[str | None, dict[str, Any]]:
+        api_key = os.getenv("ZENROWS_API_KEY", "").strip()
+        endpoint = os.getenv("ZENROWS_ENDPOINT", "https://api.zenrows.com/v1/").strip() or "https://api.zenrows.com/v1/"
+
+        params: dict[str, Any] = {
+            "apikey": api_key,
+            "url": url,
+        }
+        if extra_params:
+            for key, value in extra_params.items():
+                if value is None:
+                    continue
+                params[str(key)] = value
+
+        def _do() -> str:
+            request_headers = headers if send_headers else None
+            resp = requests.get(endpoint, params=params, headers=request_headers, timeout=self.timeout_s)
+            resp.raise_for_status()
+            return resp.text
+
+        return fetch_with_retry(
+            _do,
+            max_retries=self.max_retries,
+            backoffs=[2, 4],
+            retry_on=(requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.HTTPError),
+            stage="request",
+            warnings_prefix="zenrows",
+            max_elapsed_s=self.max_elapsed_s,
+        )
+
     def fetch_html_with_meta(
         self,
         *,
@@ -135,6 +175,8 @@ class ScrapeClient:
             html, meta = self._scrapedo_fetch(url=url, headers=headers, extra_params=extra_params, send_headers=send_headers)
         elif self.provider == "scrapingbee":
             html, meta = self._scrapingbee_fetch(url=url, headers=headers)
+        elif self.provider == "zenrows":
+            html, meta = self._zenrows_fetch(url=url, headers=headers, extra_params=extra_params, send_headers=send_headers)
         else:
             # default to legacy scraperapi
             html, meta = self._scraperapi_fetch(url=url, headers=headers)
