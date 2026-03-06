@@ -13,7 +13,7 @@ from google_niche_scraper import scan_google_niches
 from monetization_scorer import ranking_payload
 from performance_intel import performance_feedback_score
 from review_intel import review_intelligence
-from niche_profit_engine import get_ebay_metrics
+from niche_profit_engine import get_ebay_metrics, normalize_ebay_query
 from fms_decision import aggregate_data_quality, decide_for_item, infer_source_quality
 from fms_engine import compute_fms_components, compute_fms_score
 from winner_duplicator import process_niche
@@ -44,6 +44,11 @@ MONEY_NICHE_HUNTER_DISABLE_EXPANSION = os.getenv("MONEY_NICHE_HUNTER_DISABLE_EXP
 SCRAPER_RETRIES = int(os.getenv("SCRAPER_RETRIES", "2"))
 SCRAPER_BACKOFF = float(os.getenv("SCRAPER_BACKOFF", "1.0"))
 MAX_ETSY_INSPECT_PER_SEED = int(os.getenv("MAX_ETSY_INSPECT_PER_SEED", "0"))
+
+# Optional: inspect top-N Etsy listing pages to extract "X sales" signal and aggregate.
+# Higher cost but higher fidelity.
+ETSY_INSPECT_TOP_N_SALES = int(os.getenv("ETSY_INSPECT_TOP_N_SALES", "0"))
+
 MAX_NETWORK_FAILURES_PER_SEED = int(os.getenv("MAX_NETWORK_FAILURES_PER_SEED", "2"))
 
 
@@ -96,10 +101,12 @@ def fallback_seed_variants(seed: str) -> list[str]:
 def collect_google_candidates(seed: str) -> tuple[list[str], str, dict[str, Any]]:
     # If configured, skip expansion and keep only the original seed.
     if MONEY_NICHE_HUNTER_DISABLE_EXPANSION:
+        # Expansion disabled: keep only the original seed. This is not a network failure.
         return [normalize(seed)], "skipped", infer_source_quality(
             source_name="google",
-            source_status="skipped",
-            warnings=["expansion_disabled"],
+            source_status="partial",
+            completeness="empty",
+            warnings=["expansion_disabled", "skipped"],
         )
 
     try:
@@ -193,6 +200,7 @@ def collect_etsy_shortlist(seed: str, google_candidates: list[str]) -> tuple[lis
     warnings: list[str] = []
     source_status = "ok"
     failure_stage = None
+
     for result in response.get("results", []):
         req_meta = result.get("request_meta") or {}
         if isinstance(req_meta, dict):
@@ -211,6 +219,48 @@ def collect_etsy_shortlist(seed: str, google_candidates: list[str]) -> tuple[lis
         digital_share = float(aggregates.get("digital_share") or 0)
         median_price = aggregates.get("median_price")
         comp = competitor_profile(result.get("listings", []))
+
+        # Optional: inspect top-N listing pages to extract "X sales".
+        if ETSY_INSPECT_TOP_N_SALES > 0:
+            sales_values: list[int] = []
+            inspected_urls: set[str] = set()
+            for listing in (result.get("listings") or [])[: max(0, ETSY_INSPECT_TOP_N_SALES)]:
+                url = str(listing.get("url") or "").strip()
+                if not url or url in inspected_urls:
+                    continue
+                inspected_urls.add(url)
+                try:
+                    details = inspect_listing(url, max_reviews=0)
+                    sc = details.get("sales_count")
+                    if isinstance(sc, int) and sc >= 0:
+                        sales_values.append(sc)
+                except Exception as exc:
+                    print(f"[monetization_pipeline_fast] Etsy sales inspect failed for seed='{seed}': {exc}")
+                    continue
+                time.sleep(0.05)
+            if sales_values:
+                aggregates["sales_count_top_n"] = len(sales_values)
+                aggregates["sales_count_top_max"] = max(sales_values)
+                aggregates["sales_count_top_avg"] = round(sum(sales_values) / max(1, len(sales_values)), 2)
+            else:
+                aggregates.setdefault("sales_count_top_n", 0)
+                aggregates.setdefault("sales_count_top_max", None)
+                aggregates.setdefault("sales_count_top_avg", None)
+            result["aggregates"] = aggregates
+
+        # If expansion is disabled, evaluate only the seed itself (1:1 seed -> verdict).
+        if MONEY_NICHE_HUNTER_DISABLE_EXPANSION:
+            seed_kw = normalize(seed)
+            if seed_kw and seed_kw not in seen:
+                seen.add(seed_kw)
+                shortlist.append({
+                    "niche": seed_kw,
+                    "etsy_search": result,
+                    "competition": comp,
+                    "trend_score": 50.0 + min(20.0, float(result.get("search_metadata", {}).get("total_results") or 0) / 500.0),
+                })
+            break
+
         if keyword and digital_share >= 0.15:
             if keyword not in seen:
                 seen.add(keyword)
@@ -220,6 +270,7 @@ def collect_etsy_shortlist(seed: str, google_candidates: list[str]) -> tuple[lis
                     "competition": comp,
                     "trend_score": 50.0 + min(20.0, float(result.get("search_metadata", {}).get("total_results") or 0) / 500.0),
                 })
+
         inspected = 0
         for listing in result.get("listings", [])[:5]:
             title = normalize(listing.get("title", ""))
@@ -324,6 +375,9 @@ def etsy_signal_summary(niche_ctx: dict[str, Any]) -> dict[str, Any]:
         "digital_share": aggregates.get("digital_share", search_metadata.get("digital_share")),
         "total_results": total_results,
         "avg_reviews_top": (niche_ctx.get("competition") or {}).get("avg_reviews_top"),
+        "sales_count_top_max": aggregates.get("sales_count_top_max"),
+        "sales_count_top_avg": aggregates.get("sales_count_top_avg"),
+        "sales_count_top_n": aggregates.get("sales_count_top_n"),
     }
 
 
@@ -436,7 +490,7 @@ def collect_candidates() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 seed_record.setdefault("source_quality", {})["google"] = google_quality
                 if google_status == "ok":
                     batch_stats["google_successes"] += 1
-                else:
+                elif google_status in {"timeout", "failed"}:
                     network_failures += 1
 
             if etsy_requests_used < MAX_ETSY_REQUESTS_PER_BATCH:
@@ -447,7 +501,7 @@ def collect_candidates() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 seed_record.setdefault("source_quality", {})["etsy"] = etsy_quality
                 if etsy_status == "ok":
                     batch_stats["etsy_successes"] += 1
-                else:
+                elif etsy_status in {"timeout", "failed"}:
                     network_failures += 1
 
             if network_failures >= MAX_NETWORK_FAILURES_PER_SEED:
@@ -468,7 +522,7 @@ def collect_candidates() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 shortlist = [{"niche": niche, "trend_score": 50.0} for niche in fallback_seed_variants(seed)]
                 seed_record["status"] = "partial_ok"
                 seed_record["reason"] = "fallback_seed_variants_used"
-            elif seed_record["google_status"] != "ok" or seed_record["etsy_status"] != "ok":
+            elif seed_record["etsy_status"] != "ok" or seed_record["google_status"] in {"timeout", "failed"}:
                 seed_record["status"] = "partial_ok"
                 seed_record["reason"] = "partial_network_degradation"
 
@@ -488,7 +542,7 @@ def collect_candidates() -> tuple[list[dict[str, Any]], dict[str, Any]]:
 
                 try:
                     batch_stats["ebay_requests_used"] += 1
-                    metrics, ebay_quality = ebay_metrics_with_retry(niche)
+                    metrics, ebay_quality = ebay_metrics_with_retry(normalize_ebay_query(niche) or niche)
                     batch_stats["ebay_successes"] += 1
                 except Exception as exc:
                     print(f"[monetization_pipeline_fast] eBay validation failed for '{niche}': {exc}")
@@ -511,7 +565,20 @@ def collect_candidates() -> tuple[list[dict[str, Any]], dict[str, Any]]:
 
                 active = int(metrics.get("active", 0) or 0)
                 sold = int(metrics.get("sold", 0) or 0)
-                str_value = round((sold / active) * 100, 2) if active > 0 else 0.0
+
+                # Sanity: if active==0, STR must be 0 and sold should not be trusted.
+                if active <= 0:
+                    if sold != 0:
+                        sold = 0
+                        ebay_quality = infer_source_quality(
+                            source_name="ebay",
+                            source_status="partial",
+                            warnings=["active_zero_sold_nonzero_sanitized"],
+                            completeness="partial",
+                        )
+                    str_value = 0.0
+                else:
+                    str_value = round((sold / active) * 100, 2)
                 comp = niche_ctx.get("competition") or {}
                 review = niche_ctx.get("review") or {}
                 intel = {
@@ -585,6 +652,9 @@ def collect_candidates() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                     "etsy_digital_share": etsy_summary["digital_share"],
                     "etsy_total_results": etsy_summary["total_results"],
                     "avg_reviews_top": etsy_summary["avg_reviews_top"],
+                    "sales_count_top_max": etsy_summary.get("sales_count_top_max"),
+                    "sales_count_top_avg": etsy_summary.get("sales_count_top_avg"),
+                    "sales_count_top_n": etsy_summary.get("sales_count_top_n"),
                     "data_quality": item.get("data_quality") or {},
                     "source_quality": item.get("source_quality") or {},
                 })

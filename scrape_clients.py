@@ -8,6 +8,21 @@ import requests
 
 from network_retry import fetch_with_retry
 
+# Load env files early so provider tokens are available for all entrypoints.
+# This repo uses .env.scrape.local as the source-of-truth for scraping provider keys.
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover
+    load_dotenv = None  # type: ignore
+
+if load_dotenv is not None:
+    _ROOT = os.path.abspath(os.path.dirname(__file__))
+    for _name in (".env", ".env.openai.local", ".env.scrape.local"):
+        _path = os.path.join(_ROOT, _name)
+        if os.path.exists(_path):
+            # Do not override already-exported env vars.
+            load_dotenv(_path, override=False)
+
 
 class ScrapeClient:
     """Thin wrapper over different scraping providers.
@@ -69,6 +84,10 @@ class ScrapeClient:
         send_headers: bool = True,
     ) -> tuple[str | None, dict[str, Any]]:
         token = os.getenv("SCRAPEDO_TOKEN", "").strip()
+        if not token:
+            raise RuntimeError(
+                "SCRAPEDO_TOKEN is missing. Ensure .env.scrape.local is loaded (python-dotenv installed) or export SCRAPEDO_TOKEN."
+            )
         endpoint = os.getenv("SCRAPEDO_ENDPOINT", "https://api.scrape.do/").strip() or "https://api.scrape.do/"
         custom_headers = os.getenv("SCRAPEDO_CUSTOM_HEADERS", "false").strip().lower()
         # scrape.do api mode expects token + url; requests will handle URL encoding.

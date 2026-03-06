@@ -115,6 +115,86 @@ def get_google_suggests(seed_keyword: str) -> list[str]:
     return dedupe_keep_order(suggestions)
 
 
+EBAY_QUERY_MAX_TOKENS = int(os.getenv("EBAY_QUERY_MAX_TOKENS", "6"))
+EBAY_QUERY_MIN_TOKENS = int(os.getenv("EBAY_QUERY_MIN_TOKENS", "4"))
+
+
+def normalize_ebay_query(text: str) -> str:
+    """Normalize raw niche text into a stable eBay query.
+
+    Goals:
+    - remove obvious platform words (etsy/ebay/google sheets, etc.)
+    - strip year tokens and noisy numbers ("2026 2027", "75 day")
+    - keep 4–6 meaningful tokens (configurable)
+
+    This reduces false parse matches where the heading includes the query/title.
+    """
+    raw = re.sub(r"\s+", " ", str(text or "").strip())
+    if not raw:
+        return ""
+
+    # Drop punctuation that creates token splits.
+    cleaned = re.sub(r"[^\w\s]", " ", raw, flags=re.UNICODE)
+    tokens = [t for t in cleaned.lower().split() if t]
+
+    drop_words = {
+        "etsy",
+        "ebay",
+        "amazon",
+        "shopify",
+        "gumroad",
+        "pinterest",
+        "tiktok",
+        "youtube",
+        "google",
+        "goodnotes",
+        "notability",
+        "ipad",
+        "pdf",
+        "svg",
+        "canva",
+        "notion",
+        "sheet",
+        "sheets",
+        "spreadsheet",
+        "template",
+        "printable",
+        "digital",
+        "download",
+        "bundle",
+    }
+
+    filtered: list[str] = []
+    for tok in tokens:
+        if tok in drop_words:
+            continue
+        # strip pure years / dates / day counts
+        if tok.isdigit():
+            n = int(tok)
+            if 1900 <= n <= 2100:
+                continue
+            if n <= 366:
+                continue
+            continue
+        # drop year-ish tokens like 2026-2027
+        if re.fullmatch(r"20\d{2}", tok):
+            continue
+        filtered.append(tok)
+
+    if not filtered:
+        # fallback to raw tokens w/out platform words (preserve at least something)
+        filtered = [t for t in tokens if t not in drop_words]
+
+    max_toks = max(1, EBAY_QUERY_MAX_TOKENS)
+    min_toks = max(1, EBAY_QUERY_MIN_TOKENS)
+
+    out = filtered[:max_toks]
+    if len(out) < min_toks and len(filtered) > len(out):
+        out = filtered[:min_toks]
+
+    return " ".join(out).strip()
+
+
 def build_ebay_search_url(keyword: str, sold: bool = False) -> str:
     quoted_kw = urllib.parse.quote(keyword)
     base = f"https://www.ebay.com/sch/i.html?_nkw={quoted_kw}"
@@ -177,10 +257,11 @@ def extract_count_from_ebay(html: str) -> int:
             # We only accept numbers when they are explicitly tied to result/count tokens.
             direct_patterns = [
                 r"\bshowing\s+[\d][\d,\.\s]*\s*-\s*[\d][\d,\.\s]*\s+of\s+([\d][\d,\.\s]*)\b",
-                r"\b([\d][\d,\.\s]*)\s+results?\s+for\b",
-                r"\b([\d][\d,\.\s]*)\s+results?\s+found\b",
-                r"\b([\d][\d,\.\s]*)\s+results?\b",
-                r"\b([\d][\d,\.\s]*)\s+items?\b",
+                # eBay often renders counts as "1,000 + results for ..."
+                r"\b([\d][\d,\.\s]*)\s*(?:\+)?\s+results?\s+for\b",
+                r"\b([\d][\d,\.\s]*)\s*(?:\+)?\s+results?\s+found\b",
+                r"\b([\d][\d,\.\s]*)\s*(?:\+)?\s+results?\b",
+                r"\b([\d][\d,\.\s]*)\s*(?:\+)?\s+items?\b",
             ]
             for pattern in direct_patterns:
                 match = re.search(pattern, text, flags=re.IGNORECASE)
@@ -199,12 +280,12 @@ def extract_count_from_ebay(html: str) -> int:
     upper_text = " ".join(text_candidates[:300])
 
     patterns = [
-        r"([\d][\d,\.\s]*)\s+results?\s+for\b",
-        r"([\d][\d,\.\s]*)\s+results?\s+found\b",
-        r"([\d][\d,\.\s]*)\s+results?\b",
-        r"\bshowing\s+[\d][\d,\.\s]*\s*-\s*[\d][\d,\.\s]*\s+of\s+([\d][\d,\.\s]*)\s+results?\b",
-        r"\bof\s+([\d][\d,\.\s]*)\s+results?\b",
-        r"([\d][\d,\.\s]*)\s+items?\b",
+        r"([\d][\d,\.\s]*)\s*(?:\+)?\s+results?\s+for\b",
+        r"([\d][\d,\.\s]*)\s*(?:\+)?\s+results?\s+found\b",
+        r"([\d][\d,\.\s]*)\s*(?:\+)?\s+results?\b",
+        r"\bshowing\s+[\d][\d,\.\s]*\s*-\s*[\d][\d,\.\s]*\s+of\s+([\d][\d,\.\s]*)\s*(?:\+)?\s+results?\b",
+        r"\bof\s+([\d][\d,\.\s]*)\s*(?:\+)?\s+results?\b",
+        r"([\d][\d,\.\s]*)\s*(?:\+)?\s+items?\b",
         r"([\d][\d,\.\s]*)\s+matches\b",
     ]
 
@@ -228,8 +309,10 @@ def extract_count_from_ebay(html: str) -> int:
 
 
 def get_ebay_metrics(keyword: str) -> dict:
-    active_url = build_ebay_search_url(keyword, sold=False)
-    sold_url = build_ebay_search_url(keyword, sold=True)
+    normalized_query = normalize_ebay_query(keyword)
+    query_for_urls = normalized_query or keyword
+    active_url = build_ebay_search_url(query_for_urls, sold=False)
+    sold_url = build_ebay_search_url(query_for_urls, sold=True)
 
     metrics = {
         "active": 0,
