@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Digital Product Spec",
+  "type": "object",
+  "required": [
+    "spec_version",
+    "product_id",
+    "product_slug",
+    "product_name",
+    "product_family",
+    "product_type",
+    "benefit_statement",
+    "user_problem",
+    "intended_user",
+    "usage_outcome",
+    "build_backend",
+    "layout_profile",
+    "theme",
+    "required_artifacts",
+    "preview_assets_required",
+    "qa_checks",
+    "provenance"
+  ],
+  "properties": {
+    "spec_version": {"type": "string"},
+    "product_id": {"type": "string"},
+    "product_slug": {"type": "string"},
+    "product_name": {"type": "string"},
+    "product_family": {"type": "string"},
+    "product_type": {"type": "string"},
+    "benefit_statement": {"type": "string"},
+    "user_problem": {"type": "string"},
+    "intended_user": {"type": "string"},
+    "usage_outcome": {"type": "string"},
+    "content_modules": {"type": "array", "items": {"type": "string"}},
+    "pages": {"type": "array", "items": {"type": "object"}},
+    "page_rules": {"type": "object"},
+    "variants": {"type": "array", "items": {"type": "object"}},
+    "build_backend": {"type": "string", "enum": ["canva_pdf", "sheet_pdf", "sheet_live_only"]},
+    "layout_profile": {"type": "string"},
+    "theme": {"type": "string"},
+    "master_template_refs": {"type": "array", "items": {"type": "string"}},
+    "linking_profile": {"type": "string"},
+    "required_artifacts": {"type": "array", "items": {"type": "string"}},
+    "delivery_format": {"type": "string"},
+    "preview_assets_required": {"type": "array", "items": {"type": "string"}},
+    "qa_checks": {"type": "array", "items": {"type": "string"}},
+    "must_have_sections": {"type": "array", "items": {"type": "string"}},
+    "must_have_files": {"type": "array", "items": {"type": "string"}},
+    "provenance": {
+      "type": "object",
+      "required": ["source_type"],
+      "properties": {
+        "source_type": {"type": "string"},
+        "niche_id": {"type": "string"},
+        "winner_id": {"type": "string"},
+        "sku_task_id": {"type": "string"}
+      }
+    }
+  }
+}

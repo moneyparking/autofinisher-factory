@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Artifact Manifest",
+  "type": "object",
+  "required": [
+    "manifest_version",
+    "product_slug",
+    "product_spec_path",
+    "build_status",
+    "artifacts",
+    "completeness",
+    "qa"
+  ],
+  "properties": {
+    "manifest_version": {"type": "string"},
+    "product_slug": {"type": "string"},
+    "product_spec_path": {"type": "string"},
+    "build_status": {"type": "string"},
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["artifact_type", "path", "exists"],
+        "properties": {
+          "artifact_type": {"type": "string"},
+          "path": {"type": "string"},
+          "exists": {"type": "boolean"},
+          "is_primary": {"type": "boolean"}
+        }
+      }
+    },
+    "completeness": {
+      "type": "object",
+      "required": ["required_artifacts_ready", "preview_assets_ready"],
+      "properties": {
+        "required_artifacts_ready": {"type": "boolean"},
+        "preview_assets_ready": {"type": "boolean"}
+      }
+    },
+    "qa": {
+      "type": "object",
+      "required": ["checks_passed", "broken_links"],
+      "properties": {
+        "checks_passed": {"type": "boolean"},
+        "broken_links": {"type": "integer"},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}
