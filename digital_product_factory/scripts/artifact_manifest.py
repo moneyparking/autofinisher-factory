@@ -4,6 +4,11 @@ import argparse
 from pathlib import Path
 
 try:
+    from pypdf import PdfReader  # type: ignore
+except Exception:
+    PdfReader = None
+
+try:
     import fitz  # type: ignore
 except Exception:
     fitz = None
@@ -12,9 +17,15 @@ from common import OUTPUTS_DIR, read_json, write_json
 
 ARTIFACT_MAP = {
     "deliverable_pdf": "deliverable.pdf",
+    "deliverable_xlsx": "deliverable.xlsx",
+    "deliverable_raw_pdf": "deliverable_raw.pdf",
     "master_png": "master.png",
     "mockup_png": "mockup.png",
     "seo_txt": "SEO.txt",
+    "source_csv": "source_rows.csv",
+    "preview_pdf": "preview.pdf",
+    "page_manifest": "page_manifest.json",
+    "planner_link_map": "planner_link_map.csv",
 }
 
 
@@ -45,9 +56,45 @@ def build_manifest(spec: dict, product_dir: Path) -> dict:
             }
         )
 
-    required_ready = all((product_dir / filename).exists() for filename in ["deliverable.pdf", "master.png"])
-    preview_ready = all((product_dir / filename).exists() for filename in ["master.png", "mockup.png"])
+    required_filenames = [ARTIFACT_MAP[item] for item in spec.get("required_artifacts", []) if item in ARTIFACT_MAP]
+    preview_filenames = [ARTIFACT_MAP[item] for item in spec.get("preview_assets_required", []) if item in ARTIFACT_MAP]
+    required_ready = all((product_dir / filename).exists() for filename in required_filenames)
+    preview_ready = all((product_dir / filename).exists() for filename in preview_filenames)
     broken_links = validate_links(product_dir / "deliverable.pdf")
+    notes = [] if fitz is not None else ["link_validation_skipped_no_pymupdf"]
+    hyperlink_stage = spec.get("hyperlink_stage") or {}
+    hyperlink_status = str(hyperlink_stage.get("status") or "not_applicable")
+    if spec.get("product_kind") == "planner":
+        thresholds = spec.get("qa_thresholds") or {}
+        deliverable_pdf = product_dir / "deliverable.pdf"
+        raw_pdf = product_dir / "deliverable_raw.pdf"
+        link_map = product_dir / "planner_link_map.csv"
+        page_manifest = product_dir / "page_manifest.json"
+        if PdfReader is not None and deliverable_pdf.exists():
+            try:
+                page_count = len(PdfReader(str(deliverable_pdf)).pages)
+                min_page_count = int(thresholds.get("min_page_count") or 0)
+                if min_page_count and page_count < min_page_count:
+                    notes.append("page_count_below_threshold")
+            except Exception:
+                notes.append("page_count_check_failed")
+        if not raw_pdf.exists():
+            notes.append("planner_raw_pdf_missing")
+        if not link_map.exists():
+            notes.append("planner_link_map_missing")
+        if not page_manifest.exists():
+            notes.append("page_manifest_missing")
+        if spec.get("hyperlinked"):
+            if spec.get("hyperlinked_ready", False) and hyperlink_status == "done":
+                pass
+            elif hyperlink_status == "failed":
+                notes.append("hyperlink_stage_failed")
+            else:
+                notes.append("hyperlink_stage_not_completed")
+    if spec.get("product_kind") == "spreadsheet":
+        xlsx_path = product_dir / "deliverable.xlsx"
+        if not xlsx_path.exists():
+            notes.append("spreadsheet_deliverable_missing")
 
     return {
         "manifest_version": "v1",
@@ -60,9 +107,10 @@ def build_manifest(spec: dict, product_dir: Path) -> dict:
             "preview_assets_ready": preview_ready,
         },
         "qa": {
-            "checks_passed": required_ready and broken_links == 0,
+            "checks_passed": required_ready and broken_links == 0 and "hyperlink_stage_failed" not in notes,
             "broken_links": broken_links,
-            "notes": [] if fitz is not None else ["link_validation_skipped_no_pymupdf"],
+            "hyperlink_stage_status": hyperlink_status,
+            "notes": notes,
         },
     }
 
