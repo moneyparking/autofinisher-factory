@@ -29,6 +29,8 @@ def stage_product_outputs(product_slug: str) -> None:
         "preview.pdf",
         "page_manifest.json",
         "planner_link_map.csv",
+        "listing_preview.html",
+        "listing_image_plan.json",
     ]:
         source = product_dir / filename
         if source.exists():
@@ -129,6 +131,7 @@ def main() -> None:
     subprocess.run(["python3", str(Path(__file__).with_name("build_from_spec.py")), slug], check=True)
     subprocess.run(["python3", str(Path(__file__).with_name("artifact_manifest.py")), slug], check=True)
     subprocess.run(["python3", str(Path(__file__).with_name("listing_compiler.py")), slug, "--channel", "etsy"], check=True)
+    subprocess.run(["python3", str(Path(__file__).with_name("render_listing_assets.py")), slug], check=True)
     subprocess.run(["python3", str(Path(__file__).with_name("qa_runner.py")), slug], check=True)
     stage_product_outputs(slug)
 

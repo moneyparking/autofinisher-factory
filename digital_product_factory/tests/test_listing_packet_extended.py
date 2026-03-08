@@ -13,7 +13,6 @@ if str(SCRIPTS_DIR) not in sys.path:
 if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
-from common import read_json
 from listing_compiler import compile_listing_packet
 
 
@@ -25,13 +24,13 @@ def sample_spec_manifest() -> tuple[dict, dict]:
         "product_kind": "spreadsheet",
         "product_family": "budget_sheet_base",
         "product_type": "budget_system",
-        "benefit_statement": "Save 10 hours a week",
+        "benefit_statement": "Save time and see your monthly numbers at a glance",
         "user_problem": "Need a simple budget tracker",
         "intended_user": "busy moms",
         "usage_outcome": "Track spending in minutes",
         "layout_profile": "budget_dashboard",
         "delivery_format": "sheet_pdf",
-        "content_modules": ["dashboard", "transactions"],
+        "content_modules": ["dashboard", "transactions", "monthly_overview"],
         "listing_inputs": {
             "listing_title": "Budget Spreadsheet | Digital Download",
             "category": "spreadsheets",
@@ -55,29 +54,50 @@ def sample_spec_manifest() -> tuple[dict, dict]:
     return spec, manifest
 
 
-def test_listing_packet_accepts_extended_optional_fields(sample_spec_manifest: tuple[dict, dict]) -> None:
+@pytest.fixture
+def sample_packet(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sample_spec_manifest: tuple[dict, dict]) -> tuple[dict, Path]:
+    import listing_compiler
+
     spec, manifest = sample_spec_manifest
+    monkeypatch.setattr(listing_compiler, "OUTPUTS_DIR", tmp_path)
     packet = compile_listing_packet(spec, manifest, "etsy")
+    product_dir = tmp_path / spec["product_slug"]
+    product_dir.mkdir(parents=True, exist_ok=True)
+    return packet, product_dir
+
+
+def test_listing_packet_populates_publish_ready_fields(sample_packet: tuple[dict, Path]) -> None:
+    packet, _ = sample_packet
     for field in [
         "description_intro",
         "description_whats_included",
         "description_how_it_works",
         "description_what_youll_get",
         "description_terms",
+        "description_compatibility",
         "photo_sequence_hint",
         "thumbnail_angle",
         "upload_order_hint",
+        "seo_aeo",
+        "listing_image_plan",
+        "listing_image_paths",
+        "market_readiness",
     ]:
         assert field in packet
 
 
-def test_compile_listing_packet_populates_extended_fields(sample_spec_manifest: tuple[dict, dict]) -> None:
-    spec, manifest = sample_spec_manifest
-    packet = compile_listing_packet(spec, manifest, "etsy")
+def test_compile_listing_packet_is_buyer_facing_and_market_ready(sample_packet: tuple[dict, Path]) -> None:
+    packet, _ = sample_packet
     assert len(packet["description_intro"]) > 10
     assert "• Budget Spreadsheet" in packet["description_whats_included"]
-    assert "deliverable file" in packet["description_what_youll_get"]
+    assert "10-image listing plan" in packet["description_what_youll_get"]
     assert packet["thumbnail_angle"] == "front_cover"
+    assert len(packet["tags"]) == 13
+    assert len(packet["listing_image_plan"]) == 10
+    assert len(packet["listing_image_paths"]) == 10
+    assert packet["market_readiness"]["tags_ready"] is True
+    assert "buyer receives" not in packet["description"].lower()
+    assert packet["title"].count("Budget Spreadsheet") == 1
 
 
 def test_replay_product_reads_existing_outputs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

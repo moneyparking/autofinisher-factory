@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import zipfile
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -12,9 +13,16 @@ try:
 except Exception:
     PdfReader = None
 
-from common import OUTPUTS_DIR, read_json
+from common import OUTPUTS_DIR, clean_text, read_json
 
 NS = {"main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+BANNED_COPY_PHRASES = {
+    "buyer receives",
+    "product family",
+    "artifact",
+    "etsy-ready",
+    "ready for etsy upload",
+}
 
 
 def _safe_read_json(path: Path) -> dict | None:
@@ -88,6 +96,68 @@ def _required_sheet_notes(xlsx_path: Path, required_sheets: list[str]) -> list[s
 
 
 
+def _title_notes(title: str) -> list[str]:
+    notes: list[str] = []
+    normalized = clean_text(title)
+    if not normalized:
+        return ["listing_title_missing"]
+    parts = [clean_text(part).lower() for part in normalized.split("|") if clean_text(part)]
+    if len(parts) != len(set(parts)):
+        notes.append("listing_title_tautology")
+    words = re.findall(r"[a-z0-9]+", normalized.lower())
+    if len(words) < 4:
+        notes.append("listing_title_too_short")
+    return notes
+
+
+
+def _buyer_facing_notes(packet: dict) -> list[str]:
+    notes: list[str] = []
+    fields = [
+        packet.get("title"),
+        packet.get("description"),
+        packet.get("description_intro"),
+        packet.get("description_whats_included"),
+        packet.get("description_how_it_works"),
+        packet.get("description_what_youll_get"),
+    ]
+    haystack = " ".join(clean_text(item).lower() for item in fields if item)
+    for phrase in sorted(BANNED_COPY_PHRASES):
+        if phrase in haystack:
+            notes.append(f"buyer_facing_jargon:{phrase}")
+    return notes
+
+
+
+def _packet_market_notes(packet: dict, product_dir: Path) -> list[str]:
+    notes: list[str] = []
+    tags = packet.get("tags") or []
+    if len(tags) != 13:
+        notes.append("listing_tags_count_invalid")
+    seo_aeo = packet.get("seo_aeo") or {}
+    required_seo = ["what_is_it", "who_is_it_for", "what_do_i_get", "how_do_i_use_it", "compatibility"]
+    if any(not clean_text(seo_aeo.get(field)) for field in required_seo):
+        notes.append("seo_aeo_incomplete")
+    image_plan = packet.get("listing_image_plan") or []
+    if len(image_plan) != 10:
+        notes.append("listing_image_plan_count_invalid")
+    image_paths = packet.get("listing_image_paths") or []
+    if len(image_paths) != 10:
+        notes.append("listing_image_paths_count_invalid")
+    artifacts = packet.get("artifacts") or {}
+    listing_html_path = Path(str(artifacts.get("rendered_listing_html_path") or product_dir / "listing_preview.html"))
+    listing_plan_path = Path(str(artifacts.get("listing_image_plan_path") or product_dir / "listing_image_plan.json"))
+    if not listing_html_path.exists():
+        notes.append("listing_preview_html_missing")
+    if not listing_plan_path.exists():
+        notes.append("listing_image_plan_file_missing")
+    market_readiness = packet.get("market_readiness") or {}
+    if not all(bool(market_readiness.get(field)) for field in ["buyer_facing_copy", "seo_aeo_complete", "title_readable", "tags_ready", "image_plan_ready"]):
+        notes.append("market_readiness_incomplete")
+    return notes
+
+
+
 def run_qa(product_slug: str) -> dict:
     product_dir = OUTPUTS_DIR / product_slug
     spec_path = product_dir / "digital_product_spec.json"
@@ -138,6 +208,14 @@ def run_qa(product_slug: str) -> dict:
     if packet is None:
         notes.append("listing_packet_missing")
         commercial_checks_passed = False
+    else:
+        packet_notes = []
+        packet_notes.extend(_title_notes(str(packet.get("title") or packet.get("listing_title") or "")))
+        packet_notes.extend(_buyer_facing_notes(packet))
+        packet_notes.extend(_packet_market_notes(packet, product_dir))
+        if packet_notes:
+            notes.extend(packet_notes)
+            commercial_checks_passed = False
 
     if product_kind == "planner":
         page_count = _pdf_page_count(deliverable_pdf)

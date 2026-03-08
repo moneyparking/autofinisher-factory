@@ -74,3 +74,72 @@ def test_qa_runner_handles_missing_packet_gracefully(tmp_path: Path, monkeypatch
     result = qa_runner.run_qa('product')
     assert 'listing_packet_missing' in result['notes']
     assert result['checks_passed'] is False
+
+
+
+def test_qa_runner_flags_market_readiness_issues(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import qa_runner
+
+    product_dir = tmp_path / 'product'
+    product_dir.mkdir(parents=True)
+    spec = {
+        'product_slug': 'product',
+        'product_kind': 'spreadsheet',
+        'must_have_files': ['deliverable.xlsx', 'preview.pdf'],
+        'qa_thresholds': {'must_have_sheets': []},
+    }
+    manifest = {
+        'artifacts': [],
+        'completeness': {'required_artifacts_ready': True, 'preview_assets_ready': True},
+        'qa': {'broken_links': 0, 'notes': []},
+    }
+    packet = {
+        'title': 'Budget Spreadsheet | Budget Spreadsheet',
+        'listing_title': 'Budget Spreadsheet | Budget Spreadsheet',
+        'description': 'Buyer receives an Etsy-ready artifact.',
+        'description_intro': 'Buyer receives an Etsy-ready artifact.',
+        'description_whats_included': 'x',
+        'description_how_it_works': 'x',
+        'description_what_youll_get': 'x',
+        'tags': ['one', 'two'],
+        'seo_aeo': {
+            'what_is_it': '',
+            'who_is_it_for': 'x',
+            'what_do_i_get': 'x',
+            'how_do_i_use_it': 'x',
+            'compatibility': 'x',
+        },
+        'listing_image_plan': [],
+        'listing_image_paths': [],
+        'artifacts': {
+            'deliverable_path': 'x',
+            'preview_path': 'x',
+            'master_path': 'x',
+            'mockup_path': 'x',
+            'seo_path': 'x',
+            'source_csv_path': 'x',
+            'rendered_listing_html_path': str(product_dir / 'listing_preview.html'),
+            'listing_image_plan_path': str(product_dir / 'listing_image_plan.json'),
+        },
+        'market_readiness': {
+            'buyer_facing_copy': False,
+            'seo_aeo_complete': False,
+            'title_readable': False,
+            'tags_ready': False,
+            'image_plan_ready': False,
+        },
+    }
+    (product_dir / 'digital_product_spec.json').write_text(json.dumps(spec), encoding='utf-8')
+    (product_dir / 'artifact_manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
+    (product_dir / 'listing_packet_etsy.json').write_text(json.dumps(packet), encoding='utf-8')
+    (product_dir / 'deliverable.xlsx').write_text('stub', encoding='utf-8')
+    (product_dir / 'preview.pdf').write_text('stub', encoding='utf-8')
+
+    monkeypatch.setattr(qa_runner, 'OUTPUTS_DIR', tmp_path)
+    result = qa_runner.run_qa('product')
+    assert result['commercial_checks_passed'] is False
+    assert 'listing_title_tautology' in result['notes']
+    assert 'listing_tags_count_invalid' in result['notes']
+    assert 'listing_image_plan_count_invalid' in result['notes']
+    assert 'market_readiness_incomplete' in result['notes']
+    assert any(note.startswith('buyer_facing_jargon:') for note in result['notes'])
