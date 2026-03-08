@@ -43,6 +43,7 @@
       "properties": {
         "checks_passed": {"type": "boolean"},
         "broken_links": {"type": "integer"},
+        "hyperlink_stage_status": {"type": "string"},
         "notes": {"type": "array", "items": {"type": "string"}}
       }
     }
