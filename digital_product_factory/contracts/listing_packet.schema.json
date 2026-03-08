@@ -109,7 +109,15 @@
     },
     "manual_steps": {"type": "array", "items": {"type": "string"}},
     "review_checks": {"type": "array", "items": {"type": "string"}},
-    "publish_status": {"type": "string"}
+    "publish_status": {"type": "string"},
+    "description_intro": {"type": "string"},
+    "description_whats_included": {"type": "string"},
+    "description_how_it_works": {"type": "string"},
+    "description_what_youll_get": {"type": "string"},
+    "description_terms": {"type": "string"},
+    "photo_sequence_hint": {"type": "string"},
+    "thumbnail_angle": {"type": "string"},
+    "upload_order_hint": {"type": "string"}
   },
   "additionalProperties": true
 }

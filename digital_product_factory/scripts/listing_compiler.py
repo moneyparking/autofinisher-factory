@@ -104,7 +104,7 @@ def compile_listing_packet(spec: dict, manifest: dict, channel: str) -> dict:
         "broken_links": int((manifest.get("qa") or {}).get("broken_links", 0)),
     }
 
-    return {
+    packet = {
         "packet_version": "v1",
         "packet_id": f"{spec['product_slug']}-{channel}",
         "product_slug": spec["product_slug"],
@@ -155,6 +155,26 @@ def compile_listing_packet(spec: dict, manifest: dict, channel: str) -> dict:
         ],
         "publish_status": "draft",
     }
+
+    packet["description_intro"] = clean_text(
+        spec.get("buyer_promise")
+        or f"Instant digital {spec.get('product_kind', 'product')} for {spec.get('intended_user', 'busy professionals')}."
+    )
+    packet["description_whats_included"] = "\n".join([f"• {item}" for item in what_is_included if item])
+    packet["description_how_it_works"] = clean_text(
+        listing_inputs.get("how_it_works")
+        or f"1. Download instantly → 2. Open in {spec.get('delivery_format', 'your app')} → 3. Start using immediately."
+    )
+    packet["description_what_youll_get"] = clean_text(
+        f"You'll receive {len(deliverable_files)} deliverable file(s) + {len(preview_files)} preview assets. "
+        f"Ready for Etsy upload in under 60 seconds."
+    )
+    packet["description_terms"] = "Personal use only. No commercial resale or redistribution allowed."
+    packet["photo_sequence_hint"] = "1: master.png (thumbnail) → 2: mockup.png → 3+: preview pages"
+    packet["thumbnail_angle"] = "front_cover"
+    packet["upload_order_hint"] = "deliverable_path first → preview_path → master_path last"
+
+    return packet
 
 
 def main() -> None:
