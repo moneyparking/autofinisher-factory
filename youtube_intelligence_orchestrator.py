@@ -25,6 +25,8 @@ from wedge_scoring import bundle_keep_status, calculate_bundle_power
 BASE_DIR = Path("/home/agent/autofinisher-factory")
 OUTPUT_DIR = BASE_DIR / "youtube_output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+WEDGE_OUTPUT_ROOT = BASE_DIR / "wedge_outputs"
+WEDGE_OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 WEDGE_MATRIX_V2_PATH = BASE_DIR / "WEDGE_MATRIX_TOP_SET_V2.json"
 
 QUALITY_MIN_IDEAS = int(os.getenv("YT_MIN_IDEAS", "10"))
@@ -118,6 +120,278 @@ def split_sentences(text: str) -> list[str]:
         seen.add(key)
         out.append(cleaned)
     return out
+
+
+def strip_inline_timestamps(text: str) -> str:
+    cleaned = re.sub(r"\b\d{1,2}:\d{2}(?::\d{2})?\b", " ", str(text or ""))
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return normalize_space(cleaned)
+
+
+def build_signal_windows_from_chunks(
+    chunks: list[dict[str, Any]],
+    *,
+    window_size: int = 6,
+    step: int = 3,
+    max_windows: int = 160,
+) -> list[str]:
+    texts = [strip_inline_timestamps(item.get("text", "")) for item in chunks if strip_inline_timestamps(item.get("text", ""))]
+    if not texts:
+        return []
+    if len(texts) <= window_size:
+        joined = ". ".join(texts)
+        return [joined] if len(joined) >= 80 else []
+    windows: list[str] = []
+    for start in range(0, len(texts), step):
+        group = texts[start : start + window_size]
+        if len(group) < 2:
+            continue
+        joined = ". ".join(group)
+        if len(joined) < 120:
+            continue
+        windows.append(joined)
+        if len(windows) >= max_windows:
+            break
+    return windows
+
+
+def dedupe_pain_results(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for item in items:
+        key = (
+            normalize_space(item.get("buyer", "")).lower(),
+            normalize_space(item.get("pain", "")).lower(),
+            normalize_space(item.get("wedge", "")).lower(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
+
+
+def is_etsy_ads_signal(text: str) -> bool:
+    low = normalize_space(text).lower()
+    tokens = {
+        "etsy ads",
+        "ppc",
+        "pay per click",
+        "roas",
+        "return on ad spend",
+        "ad spend",
+        "paid traffic",
+        "paid search",
+        "marketing cost percentage",
+        "break even",
+        "break-even",
+    }
+    return any(token in low for token in tokens)
+
+
+def is_strong_etsy_ads_wedge(wedge: str) -> bool:
+    return normalize_space(wedge).lower() in {
+        "etsy ads profitability system",
+        "etsy ads testing tracker",
+        "etsy ads margin guardrail toolkit",
+        "etsy break-even roas calculator",
+        "etsy listing-level ad decision system",
+        "etsy ad testing",
+    }
+
+
+def build_etsy_ads_subwedge_profile(sub_wedge_id: str) -> dict[str, Any] | None:
+    profiles: dict[str, dict[str, Any]] = {
+        "etsy_ads_profitability_system": {
+            "buyer": "Etsy seller running ads",
+            "pain": "unclear ad profitability and scaling decisions",
+            "desire": "profitable Etsy ads scaling",
+            "outcome": "profitable Etsy ads scaling",
+            "wedge": "etsy ads profitability system",
+            "artifact_stack": ["dashboard", "calculator", "testing sheet", "mini-course", "bundle"],
+            "validation_queries": [
+                "etsy ads dashboard",
+                "etsy ad profitability tracker",
+                "etsy ads optimization dashboard",
+                "etsy ads reporting template",
+            ],
+            "expected_bundle_tiers": [49, 89, 149],
+            "avg_price_hint": 69,
+            "expansion_products": ["free break-even roas calculator", "etsy ads teardown mini-course"],
+        },
+        "etsy_break_even_roas_calculator": {
+            "buyer": "Etsy seller running ads",
+            "pain": "unclear break-even ROAS targets",
+            "desire": "clear listing-level profitability thresholds",
+            "outcome": "clear listing-level profitability thresholds",
+            "wedge": "etsy break-even roas calculator",
+            "artifact_stack": ["calculator", "dashboard", "checklist", "bundle"],
+            "validation_queries": [
+                "etsy break even roas calculator",
+                "etsy roas spreadsheet",
+                "etsy ad profitability calculator",
+                "etsy ads margin calculator",
+            ],
+            "expected_bundle_tiers": [39, 79, 129],
+            "avg_price_hint": 59,
+            "expansion_products": ["free roas cheat sheet", "etsy profitability walkthrough"],
+        },
+        "etsy_ads_testing_tracker": {
+            "buyer": "Etsy shop owner testing creatives",
+            "pain": "unclear listing-level ad decisions",
+            "desire": "repeatable ad optimization decisions",
+            "outcome": "repeatable ad optimization decisions",
+            "wedge": "etsy ads testing tracker",
+            "artifact_stack": ["testing sheet", "dashboard", "playbook", "bundle"],
+            "validation_queries": [
+                "etsy ads testing template",
+                "etsy ads testing sheet",
+                "etsy listing ad tracker",
+                "etsy ads experiment tracker",
+            ],
+            "expected_bundle_tiers": [39, 79, 129],
+            "avg_price_hint": 59,
+            "expansion_products": ["free testing checklist", "ads experiment teardown"],
+        },
+        "etsy_ads_margin_guardrail_toolkit": {
+            "buyer": "Etsy seller running ads",
+            "pain": "unclear margin guardrails before ads",
+            "desire": "safe paid acquisition budgeting",
+            "outcome": "safe paid acquisition budgeting",
+            "wedge": "etsy ads margin guardrail toolkit",
+            "artifact_stack": ["calculator", "dashboard", "checklist", "bundle"],
+            "validation_queries": [
+                "etsy ads margin calculator",
+                "etsy profit tracker spreadsheet",
+                "etsy ad spend budget template",
+                "etsy ad profitability spreadsheet",
+            ],
+            "expected_bundle_tiers": [49, 89, 129],
+            "avg_price_hint": 69,
+            "expansion_products": ["free margin guardrail sheet", "ads budgeting workshop"],
+        },
+        "etsy_listing_level_ad_decision_system": {
+            "buyer": "Etsy shop owner scaling paid traffic",
+            "pain": "unclear winner-versus-loser ad calls",
+            "desire": "faster listing-level budget decisions",
+            "outcome": "faster listing-level budget decisions",
+            "wedge": "etsy listing-level ad decision system",
+            "artifact_stack": ["decision dashboard", "testing sheet", "checklist", "bundle"],
+            "validation_queries": [
+                "etsy ads dashboard",
+                "etsy listing ad tracker",
+                "etsy ad decision sheet",
+                "etsy ads scale or pause template",
+            ],
+            "expected_bundle_tiers": [49, 89, 149],
+            "avg_price_hint": 69,
+            "expansion_products": ["free scale-or-pause rubric", "listing decision teardown"],
+        },
+    }
+    profile = profiles.get(sub_wedge_id)
+    if not profile:
+        return None
+    return json.loads(json.dumps(profile))
+
+
+def build_etsy_ads_parent_wedge(video_id: str, transcript_text: str) -> dict[str, Any]:
+    cleaned = strip_inline_timestamps(transcript_text)
+    sentences = split_sentences(cleaned)
+    quote = next((sentence for sentence in sentences if is_etsy_ads_signal(sentence)), cleaned[:320] or "Etsy Ads context confirmed from transcript.")
+    return {
+        "id": f"{video_id}_etsy_ads_parent",
+        "video_id": video_id,
+        "domain": "etsy_ads",
+        "ads_context_confirmed": True,
+        "origin": "parent_wedge_from_transcript",
+        "buyer": "Etsy sellers scaling with paid traffic",
+        "pain": "unclear ad profitability and scaling decisions",
+        "desire": "profitable Etsy ads scaling",
+        "outcome": "profitable Etsy ads scaling",
+        "wedge": "etsy ads profitability system",
+        "quote": quote,
+    }
+
+
+def expand_etsy_ads_subwedges(parent_wedge: dict[str, Any], transcript_text: str) -> list[dict[str, Any]]:
+    if parent_wedge.get("domain") != "etsy_ads" or not parent_wedge.get("ads_context_confirmed"):
+        return []
+    cleaned = strip_inline_timestamps(transcript_text)
+    if not is_etsy_ads_signal(cleaned):
+        return []
+    low = cleaned.lower()
+    sentences = split_sentences(cleaned)
+    specs = [
+        {
+            "id": "etsy_ads_profitability_system",
+            "patterns": ["etsy ads", "ad spend", "paid traffic", "pay per click", "ppc"],
+        },
+        {
+            "id": "etsy_break_even_roas_calculator",
+            "patterns": ["roas", "return on ad spend", "break even", "break-even"],
+        },
+        {
+            "id": "etsy_ads_testing_tracker",
+            "patterns": ["turning things on and off", "month over month", "thousands of impressions", "hundreds of clicks", "testing out", "what's working and what's not working"],
+        },
+        {
+            "id": "etsy_ads_margin_guardrail_toolkit",
+            "patterns": ["net profit percentage before marketing", "cost of goods sold", "shipping costs", "refunds", "discounts", "margin standpoint", "piece of the pie"],
+        },
+        {
+            "id": "etsy_listing_level_ad_decision_system",
+            "patterns": ["turning off the listings", "heavy hitters", "winners", "spending the most amount of money", "listings that aren't profitable"],
+        },
+    ]
+    results: list[dict[str, Any]] = []
+    for spec in specs:
+        if not any(pattern in low for pattern in spec["patterns"]):
+            continue
+        profile = build_etsy_ads_subwedge_profile(spec["id"])
+        if not profile:
+            continue
+        quote = next((sentence for sentence in sentences if any(pattern in sentence.lower() for pattern in spec["patterns"])), cleaned[:320])
+        bundle_power = calculate_bundle_power(
+            {
+                "artifact_stack": profile.get("artifact_stack") or [],
+                "expected_bundle_tiers": profile.get("expected_bundle_tiers") or [],
+                "avg_price_hint": profile.get("avg_price_hint"),
+                "expansion_products": profile.get("expansion_products") or [],
+                "gumroad_fit_hint": "high",
+                "bundle_cohesion_hint": "high",
+                "artifact_diversity_hint": min(len(profile.get("artifact_stack") or []) * 2, 10),
+            }
+        )
+        results.append(
+            {
+                "id": spec["id"],
+                "video_id": parent_wedge.get("video_id"),
+                "parent_wedge_id": parent_wedge["id"],
+                "domain": "etsy_ads",
+                "ads_context_confirmed": True,
+                "origin": "sub_wedge_from_transcript",
+                "quote": quote,
+                "primary_channel": "etsy",
+                "secondary_channel": "gumroad",
+                "evidence_confidence": "medium",
+                "claim_verification_status": "unverified",
+                "source_type": "sub_wedge_from_transcript",
+                "priority": 1,
+                "gumroad_fit_hint": "high",
+                "bundle_cohesion_hint": "high",
+                "artifact_diversity_hint": min(len(profile.get("artifact_stack") or []) * 2, 10),
+                "bundle_power": bundle_power,
+                **profile,
+            }
+        )
+    return dedupe_pain_results(results)
+
+
+def write_wedge_expansion_outputs(video_id: str, parent_wedge: dict[str, Any], sub_wedges: list[dict[str, Any]]) -> None:
+    wedge_dir = WEDGE_OUTPUT_ROOT / video_id
+    wedge_dir.mkdir(parents=True, exist_ok=True)
+    write_json(wedge_dir / "parent_wedge.json", parent_wedge)
+    write_json(wedge_dir / "sub_wedges.json", sub_wedges)
 
 
 def safe_int(value: Any, default: int = 0) -> int:
@@ -529,36 +803,88 @@ async def agent_segmenter(transcript_payload: dict[str, Any], out_dir: Path) -> 
 
 
 def infer_pains_and_desires(text: str) -> list[dict[str, Any]]:
-    sentences = split_sentences(text)
+    sentences = split_sentences(strip_inline_timestamps(text))
     results: list[dict[str, Any]] = []
     pain_rules = [
-        ("adhd", "attention and focus issues", "focus-friendly execution", "ADHD knowledge workers", "adhd execution workflow"),
-        ("goodnotes", "generic planning overload", "clean digital planning", "Digital planner buyers", "goodnotes planning system"),
-        ("freelancer", "chaotic client management", "zero-miss follow-ups", "Freelancers managing clients", "freelancer client management"),
-        ("client", "chaotic client management", "zero-miss follow-ups", "Freelancers managing clients", "freelancer client management"),
-        ("crm", "scattered lead tracking", "centralized client pipeline", "Freelancers and small agencies", "notion crm workflow"),
-        ("etsy", "seller operations fragmentation", "higher ranking and cleaner operations", "Etsy sellers", "etsy seller operations"),
-        ("seo", "listing optimization confusion", "search visibility gains", "Etsy sellers", "etsy seo workflow"),
-        ("ads", "paid ads complexity", "profitable ad decisions", "Etsy sellers scaling with paid traffic", "etsy ad testing"),
-        ("midjourney", "style inconsistency", "commercial-ready consistency", "AI artists and content creators", "midjourney consistency system"),
-        ("brand", "inconsistent creative identity", "one-system brand consistency", "Content creators", "brand consistency engine"),
-        ("content", "content production burden", "repeatable content engine", "Content creators", "creator content workflow"),
-        ("legal", "compliance fear", "faster legal-safe drafting", "Solopreneurs and legal operators", "legal ai workflow"),
-        ("finance", "scattered money tracking", "clear profit visibility", "Freelancers and solo operators", "freelancer finance workflow"),
-        ("automation", "manual workflow overhead", "leveraged automation", "Digital operators", "automation workflow system"),
+        {
+            "patterns": [
+                "etsy ads",
+                "marketing cost percentage",
+                "roas",
+                "return on ad spend",
+                "break even",
+                "break-even",
+                "ad spend",
+                "pay per click",
+                "ppc",
+            ],
+            "pain": "unclear ad profitability and scaling decisions",
+            "outcome": "profitable Etsy ads scaling",
+            "buyer": "Etsy sellers scaling with paid traffic",
+            "wedge": "etsy ads profitability system",
+        },
+        {
+            "patterns": [
+                "turning things on and off",
+                "month over month",
+                "thousands of impressions",
+                "hundreds of clicks",
+                "higher level decisions",
+                "what's working and what's not working",
+                "turning off the listings",
+                "testing out",
+            ],
+            "pain": "unclear listing-level ad decisions",
+            "outcome": "repeatable ad optimization decisions",
+            "buyer": "Etsy sellers scaling with paid traffic",
+            "wedge": "etsy ads testing tracker",
+        },
+        {
+            "patterns": [
+                "net profit percentage before marketing",
+                "cost of goods sold",
+                "shipping costs",
+                "refunds",
+                "discounts",
+                "margin standpoint",
+                "piece of the pie",
+            ],
+            "pain": "unclear margin guardrails before ads",
+            "outcome": "safe paid acquisition budgeting",
+            "buyer": "Etsy sellers scaling with paid traffic",
+            "wedge": "etsy ads margin guardrail toolkit",
+        },
+        {"patterns": ["adhd"], "pain": "attention and focus issues", "outcome": "focus-friendly execution", "buyer": "ADHD knowledge workers", "wedge": "adhd execution workflow"},
+        {"patterns": ["goodnotes"], "pain": "generic planning overload", "outcome": "clean digital planning", "buyer": "Digital planner buyers", "wedge": "goodnotes planning system"},
+        {"patterns": ["freelancer", "client"], "pain": "chaotic client management", "outcome": "zero-miss follow-ups", "buyer": "Freelancers managing clients", "wedge": "freelancer client management"},
+        {"patterns": ["crm"], "pain": "scattered lead tracking", "outcome": "centralized client pipeline", "buyer": "Freelancers and small agencies", "wedge": "notion crm workflow"},
+        {"patterns": ["seo"], "pain": "listing optimization confusion", "outcome": "search visibility gains", "buyer": "Etsy sellers", "wedge": "etsy seo workflow"},
+        {"patterns": ["ads"], "pain": "paid ads complexity", "outcome": "profitable ad decisions", "buyer": "Etsy sellers scaling with paid traffic", "wedge": "etsy ad testing"},
+        {"patterns": ["etsy"], "pain": "seller operations fragmentation", "outcome": "higher ranking and cleaner operations", "buyer": "Etsy sellers", "wedge": "etsy seller operations"},
+        {"patterns": ["midjourney"], "pain": "style inconsistency", "outcome": "commercial-ready consistency", "buyer": "AI artists and content creators", "wedge": "midjourney consistency system"},
+        {"patterns": ["brand"], "pain": "inconsistent creative identity", "outcome": "one-system brand consistency", "buyer": "Content creators", "wedge": "brand consistency engine"},
+        {"patterns": ["content"], "pain": "content production burden", "outcome": "repeatable content engine", "buyer": "Content creators", "wedge": "creator content workflow"},
+        {"patterns": ["legal"], "pain": "compliance fear", "outcome": "faster legal-safe drafting", "buyer": "Solopreneurs and legal operators", "wedge": "legal ai workflow"},
+        {"patterns": ["finance"], "pain": "scattered money tracking", "outcome": "clear profit visibility", "buyer": "Freelancers and solo operators", "wedge": "freelancer finance workflow"},
+        {"patterns": ["automation"], "pain": "manual workflow overhead", "outcome": "leveraged automation", "buyer": "Digital operators", "wedge": "automation workflow system"},
     ]
-    for sentence in sentences[:100]:
+    for sentence in sentences[:240]:
         low = sentence.lower()
-        for token, pain, outcome, buyer, wedge in pain_rules:
-            if token in low:
-                results.append({
-                    "buyer": buyer,
-                    "pain": pain,
-                    "desire": outcome,
-                    "outcome": outcome,
-                    "wedge": wedge,
-                    "quote": sentence,
-                })
+        ads_context = is_etsy_ads_signal(sentence)
+        for rule in pain_rules:
+            if ads_context and rule["wedge"] in {"brand consistency engine", "etsy seller operations", "etsy seo workflow"}:
+                continue
+            if any(pattern in low for pattern in rule["patterns"]):
+                results.append(
+                    {
+                        "buyer": rule["buyer"],
+                        "pain": rule["pain"],
+                        "desire": rule["outcome"],
+                        "outcome": rule["outcome"],
+                        "wedge": rule["wedge"],
+                        "quote": sentence,
+                    }
+                )
                 break
     if not results:
         fallback_buyer = infer_buyer_from_text(text)
@@ -572,12 +898,34 @@ def infer_pains_and_desires(text: str) -> list[dict[str, Any]]:
                 "quote": "Fallback wedge generated because transcript signal was weak.",
             }
         )
-    return results[:15]
+    return dedupe_pain_results(results)[:15]
 
 
-async def agent_pain_extractor(segmenter_data: dict[str, Any], out_dir: Path) -> list[dict[str, Any]]:
-    corpus = " ".join(block.get("text", "") for block in segmenter_data.get("blocks", []))
-    pains = infer_pains_and_desires(corpus)
+async def agent_pain_extractor(transcript_payload: dict[str, Any], segmenter_data: dict[str, Any], out_dir: Path) -> list[dict[str, Any]]:
+    video_id = transcript_payload.get("video_id") or "unknown"
+    transcript_text = " ".join(item.get("text", "") for item in (transcript_payload.get("chunks") or []))
+    parent_wedge: dict[str, Any] | None = None
+    pains: list[dict[str, Any]] = []
+
+    if is_etsy_ads_signal(transcript_text):
+        parent_wedge = build_etsy_ads_parent_wedge(video_id, transcript_text)
+        pains = expand_etsy_ads_subwedges(parent_wedge, transcript_text)
+        write_wedge_expansion_outputs(video_id, parent_wedge, pains)
+
+    if not pains:
+        chunk_windows = build_signal_windows_from_chunks(transcript_payload.get("chunks") or [])
+        for window in chunk_windows:
+            pains.extend(infer_pains_and_desires(window))
+            if len(pains) >= 24:
+                break
+        if not pains:
+            corpus = " ".join(block.get("text", "") for block in segmenter_data.get("blocks", []))
+            pains = infer_pains_and_desires(corpus)
+
+    pains = dedupe_pain_results(pains)
+    if any(is_strong_etsy_ads_wedge(item.get("wedge", "")) for item in pains):
+        pains = [item for item in pains if is_strong_etsy_ads_wedge(item.get("wedge", ""))]
+    pains = pains[:15]
     write_json(out_dir / "02_pain_desire.json", pains)
     return pains
 
@@ -590,7 +938,11 @@ async def agent_solution_miner(pain_data: list[dict[str, Any]], out_dir: Path) -
         quote = normalize_space(entry.get("quote", ""))
         buyer = normalize_space(entry.get("buyer", infer_buyer_from_text(pain + " " + desire)))
         wedge = normalize_space(entry.get("wedge", clean_validation_query(pain + " " + desire, preserve_brand_terms=True)))
-        matched = choose_matching_wedge_entry(buyer, pain, wedge)
+        signal_text = normalize_space(" ".join([pain, desire, wedge, quote]))
+        ads_specific_signal = bool(entry.get("ads_context_confirmed")) or normalize_space(entry.get("domain", "")).lower() == "etsy_ads" or is_etsy_ads_signal(signal_text)
+        if ads_specific_signal:
+            buyer = normalize_space(entry.get("buyer") or "Etsy sellers scaling with paid traffic")
+        matched = None if ads_specific_signal else choose_matching_wedge_entry(buyer, pain, wedge)
         if matched:
             artifact_stack = matched.get("artifact_stack") or []
             validation_queries = matched.get("validation_queries") or []
@@ -610,42 +962,137 @@ async def agent_solution_miner(pain_data: list[dict[str, Any]], out_dir: Path) -
             differentiation_angle = "Wedge matched against Top Set v2 schema and carried forward into production logic."
         else:
             low = (pain + " " + desire + " " + wedge).lower()
-            if any(token in low for token in ["ads", "seo", "crm", "client", "finance"]):
+            if ads_specific_signal:
+                artifact_stack = entry.get("artifact_stack") or ["dashboard", "calculator", "testing sheet", "mini-course", "bundle"]
+                validation_queries = entry.get("validation_queries") or [
+                    "etsy ads dashboard",
+                    "etsy break even roas calculator",
+                    "etsy ad profitability tracker",
+                    "etsy ads testing sheet",
+                ]
+                primary_channel = entry.get("primary_channel") or "etsy"
+                secondary_channel = entry.get("secondary_channel") or "gumroad"
+                evidence_confidence = entry.get("evidence_confidence") or "medium"
+                claim_verification_status = entry.get("claim_verification_status") or "unverified"
+                source_type = entry.get("source_type") or "transcript_ads_signal"
+                priority = safe_int(entry.get("priority"), 1)
+                expected_bundle_tiers = entry.get("expected_bundle_tiers") or [49, 89, 149]
+                avg_price_hint = entry.get("avg_price_hint") or 69
+                expansion_products = entry.get("expansion_products") or ["free break-even roas calculator", "etsy ads teardown mini-course"]
+                gumroad_fit_hint = entry.get("gumroad_fit_hint") or "high"
+                bundle_cohesion_hint = entry.get("bundle_cohesion_hint") or "high"
+                artifact_diversity_hint = safe_int(entry.get("artifact_diversity_hint"), min(len(artifact_stack) * 2, 10))
+                bundle_power = safe_float(
+                    entry.get("bundle_power"),
+                    calculate_bundle_power(
+                        {
+                            "artifact_stack": artifact_stack,
+                            "expected_bundle_tiers": expected_bundle_tiers,
+                            "avg_price_hint": avg_price_hint,
+                            "expansion_products": expansion_products,
+                            "gumroad_fit_hint": gumroad_fit_hint,
+                            "bundle_cohesion_hint": bundle_cohesion_hint,
+                            "artifact_diversity_hint": artifact_diversity_hint,
+                        }
+                    ),
+                )
+                differentiation_angle = entry.get("differentiation_angle") or "Transcript-derived Etsy Ads signal normalized into profitability and testing bundles instead of generic Etsy ops."
+            elif any(token in low for token in ["ads", "seo", "crm", "client", "finance"]):
                 artifact_stack = ["dashboard", "calculator", "checklist", "mini-course"]
+                validation_queries = [
+                    clean_validation_query(f"{buyer} {wedge} {artifact_stack[0]}", preserve_brand_terms=True),
+                    clean_validation_query(f"{wedge} {artifact_stack[1]}", preserve_brand_terms=True),
+                    clean_validation_query(f"{pain} {artifact_stack[0]}", preserve_brand_terms=True),
+                ]
+                validation_queries = [q for q in validation_queries if q]
+                primary_channel = "gumroad"
+                secondary_channel = "etsy"
+                evidence_confidence = "low"
+                claim_verification_status = "unverified"
+                source_type = "transcript_signal"
+                priority = 3
+                expected_bundle_tiers = [49, 79]
+                avg_price_hint = 49
+                expansion_products = ["free checklist"]
+                gumroad_fit_hint = "medium"
+                bundle_cohesion_hint = "medium"
+                artifact_diversity_hint = min(len(artifact_stack) * 2, 10)
+                bundle_power = calculate_bundle_power(
+                    {
+                        "artifact_stack": artifact_stack,
+                        "expected_bundle_tiers": expected_bundle_tiers,
+                        "avg_price_hint": avg_price_hint,
+                        "expansion_products": expansion_products,
+                        "gumroad_fit_hint": gumroad_fit_hint,
+                        "bundle_cohesion_hint": bundle_cohesion_hint,
+                        "artifact_diversity_hint": artifact_diversity_hint,
+                    }
+                )
+                differentiation_angle = "Built from transcript-derived wedge signal and packaged as a bundle-first concept."
             elif any(token in low for token in ["midjourney", "prompt", "brand", "content", "art"]):
                 artifact_stack = ["prompt library", "bundle", "swipe file", "mini-course"]
+                validation_queries = [
+                    clean_validation_query(f"{buyer} {wedge} {artifact_stack[0]}", preserve_brand_terms=True),
+                    clean_validation_query(f"{wedge} {artifact_stack[1]}", preserve_brand_terms=True),
+                    clean_validation_query(f"{pain} {artifact_stack[0]}", preserve_brand_terms=True),
+                ]
+                validation_queries = [q for q in validation_queries if q]
+                primary_channel = "gumroad"
+                secondary_channel = "etsy"
+                evidence_confidence = "low"
+                claim_verification_status = "unverified"
+                source_type = "transcript_signal"
+                priority = 3
+                expected_bundle_tiers = [49, 79]
+                avg_price_hint = 49
+                expansion_products = ["free checklist"]
+                gumroad_fit_hint = "medium"
+                bundle_cohesion_hint = "medium"
+                artifact_diversity_hint = min(len(artifact_stack) * 2, 10)
+                bundle_power = calculate_bundle_power(
+                    {
+                        "artifact_stack": artifact_stack,
+                        "expected_bundle_tiers": expected_bundle_tiers,
+                        "avg_price_hint": avg_price_hint,
+                        "expansion_products": expansion_products,
+                        "gumroad_fit_hint": gumroad_fit_hint,
+                        "bundle_cohesion_hint": bundle_cohesion_hint,
+                        "artifact_diversity_hint": artifact_diversity_hint,
+                    }
+                )
+                differentiation_angle = "Built from transcript-derived wedge signal and packaged as a bundle-first concept."
             else:
                 artifact_stack = ["workspace", "checklist", "workbook", "bundle"]
-            validation_queries = [
-                clean_validation_query(f"{buyer} {wedge} {artifact_stack[0]}", preserve_brand_terms=True),
-                clean_validation_query(f"{wedge} {artifact_stack[1]}", preserve_brand_terms=True),
-                clean_validation_query(f"{pain} {artifact_stack[0]}", preserve_brand_terms=True),
-            ]
-            validation_queries = [q for q in validation_queries if q]
-            primary_channel = "gumroad"
-            secondary_channel = "etsy"
-            evidence_confidence = "low"
-            claim_verification_status = "unverified"
-            source_type = "transcript_signal"
-            priority = 3
-            expected_bundle_tiers = [49, 79]
-            avg_price_hint = 49
-            expansion_products = ["free checklist"]
-            gumroad_fit_hint = "medium"
-            bundle_cohesion_hint = "medium"
-            artifact_diversity_hint = min(len(artifact_stack) * 2, 10)
-            bundle_power = calculate_bundle_power(
-                {
-                    "artifact_stack": artifact_stack,
-                    "expected_bundle_tiers": expected_bundle_tiers,
-                    "avg_price_hint": avg_price_hint,
-                    "expansion_products": expansion_products,
-                    "gumroad_fit_hint": gumroad_fit_hint,
-                    "bundle_cohesion_hint": bundle_cohesion_hint,
-                    "artifact_diversity_hint": artifact_diversity_hint,
-                }
-            )
-            differentiation_angle = "Built from transcript-derived wedge signal and packaged as a bundle-first concept."
+                validation_queries = [
+                    clean_validation_query(f"{buyer} {wedge} {artifact_stack[0]}", preserve_brand_terms=True),
+                    clean_validation_query(f"{wedge} {artifact_stack[1]}", preserve_brand_terms=True),
+                    clean_validation_query(f"{pain} {artifact_stack[0]}", preserve_brand_terms=True),
+                ]
+                validation_queries = [q for q in validation_queries if q]
+                primary_channel = "gumroad"
+                secondary_channel = "etsy"
+                evidence_confidence = "low"
+                claim_verification_status = "unverified"
+                source_type = "transcript_signal"
+                priority = 3
+                expected_bundle_tiers = [49, 79]
+                avg_price_hint = 49
+                expansion_products = ["free checklist"]
+                gumroad_fit_hint = "medium"
+                bundle_cohesion_hint = "medium"
+                artifact_diversity_hint = min(len(artifact_stack) * 2, 10)
+                bundle_power = calculate_bundle_power(
+                    {
+                        "artifact_stack": artifact_stack,
+                        "expected_bundle_tiers": expected_bundle_tiers,
+                        "avg_price_hint": avg_price_hint,
+                        "expansion_products": expansion_products,
+                        "gumroad_fit_hint": gumroad_fit_hint,
+                        "bundle_cohesion_hint": bundle_cohesion_hint,
+                        "artifact_diversity_hint": artifact_diversity_hint,
+                    }
+                )
+                differentiation_angle = "Built from transcript-derived wedge signal and packaged as a bundle-first concept."
         solutions.append(
             {
                 "buyer": buyer,
@@ -674,6 +1121,11 @@ async def agent_solution_miner(pain_data: list[dict[str, Any]], out_dir: Path) -
                 "bundle_cohesion_hint": bundle_cohesion_hint,
                 "artifact_diversity_hint": artifact_diversity_hint,
                 "bundle_status": bundle_keep_status(float(bundle_power)),
+                "domain": entry.get("domain"),
+                "ads_context_confirmed": entry.get("ads_context_confirmed"),
+                "origin": entry.get("origin"),
+                "parent_wedge_id": entry.get("parent_wedge_id"),
+                "sub_wedge_id": entry.get("id"),
             }
         )
     if not solutions:
@@ -1141,7 +1593,7 @@ async def run_youtube_intelligence(
     log_step(f"[transcript] video={video_id} status={transcript_payload.get('status')} source={transcript_payload.get('source')} chunks={len(transcript_payload.get('chunks') or [])}")
 
     segmenter_data = await agent_segmenter(transcript_payload, out_dir)
-    pain_data = await agent_pain_extractor(segmenter_data, out_dir)
+    pain_data = await agent_pain_extractor(transcript_payload, segmenter_data, out_dir)
     solutions = await agent_solution_miner(pain_data, out_dir)
     log_step(f"[signals] video={video_id} blocks={segmenter_data.get('block_count')} pain_signals={len(pain_data)} wedge_objects={len(solutions)}")
 
