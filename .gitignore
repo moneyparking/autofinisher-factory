@@ -50,3 +50,7 @@ transport_test.py
 
 # local patch artifacts
 patch-1.diff
+
+# local runtime artifacts
+youtube_output/
+transcripts/

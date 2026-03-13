@@ -1,0 +1,659 @@
+{
+  "planner_base": {
+    "match_rules": [
+      {
+        "priority": 10,
+        "product_kinds": [
+          "planner"
+        ],
+        "combined_contains": [
+          "planner"
+        ]
+      },
+      {
+        "priority": 20,
+        "product_kinds": [
+          "planner"
+        ]
+      }
+    ],
+    "product_kind": "planner",
+    "product_type": "digital_planner",
+    "default_layout_profile": "planner_daily_all_in_one",
+    "default_linking_profile": "planner_monthly_tabs",
+    "delivery_format": "pdf",
+    "supports_hyperlinks": true,
+    "dated": true,
+    "year": 2026,
+    "required_artifacts": [
+      "deliverable_pdf",
+      "preview_pdf",
+      "master_png",
+      "mockup_png",
+      "seo_txt",
+      "source_csv"
+    ],
+    "preview_assets_required": [
+      "preview_pdf",
+      "master_png",
+      "mockup_png"
+    ],
+    "must_have_files": [
+      "deliverable.pdf",
+      "preview.pdf",
+      "master.png",
+      "mockup.png",
+      "SEO.txt",
+      "source_rows.csv"
+    ],
+    "must_have_sections": [
+      "yearly_overview",
+      "monthly_overviews",
+      "weekly_pages",
+      "daily_pages",
+      "extra_templates"
+    ],
+    "content_modules": [
+      "yearly_overview",
+      "monthly_overviews",
+      "weekly_pages",
+      "daily_pages",
+      "extra_templates",
+      "adhd_prompt_blocks"
+    ],
+    "page_rules": {
+      "days": 365,
+      "months": 12,
+      "weeks": 52,
+      "theme_count": 5
+    },
+    "planner_structure": {
+      "yearly_pages": 1,
+      "monthly_pages": 12,
+      "weekly_pages": 52,
+      "daily_pages": 365,
+      "extra_templates": [
+        "budget",
+        "self_care",
+        "routines",
+        "notes"
+      ]
+    },
+    "hyperlink_model": {
+      "home": "yearly_overview",
+      "tabs": "monthly_overview",
+      "daily_to_monthly": "same_month",
+      "monthly_to_yearly": true,
+      "extra_nav": [
+        "budget",
+        "self_care",
+        "notes"
+      ]
+    },
+    "qa_checks": [
+      "required_files_present",
+      "titles_not_empty",
+      "links_valid_if_present",
+      "source_csv_present",
+      "min_page_count",
+      "year_coverage"
+    ],
+    "qa_thresholds": {
+      "min_page_count": 350,
+      "hyperlink_required": true,
+      "required_months": 12,
+      "required_daily_pages": 365
+    },
+    "render_plan": {
+      "engine": "planner_pdf_pipeline",
+      "csv_generator": "generate_full_adhd_planner_csv",
+      "pdf_renderer": "build_planner_pdf",
+      "csv_profile": "planner_daily_2026",
+      "linking_profile": "planner_monthly_tabs"
+    },
+    "preview_sampling": {
+      "max_pages": 10,
+      "include_page_types": [
+        "cover",
+        "yearly_overview",
+        "monthly_overview",
+        "weekly_page",
+        "daily_page",
+        "extra_template"
+      ]
+    },
+    "listing_defaults": {
+      "category": "digital_planners",
+      "format_hint": "PDF for GoodNotes / Notability / Xodo",
+      "tags": [
+        "2026 adhd digital planner",
+        "hyperlinked goodnotes planner",
+        "adhd planner pdf",
+        "ipad planner",
+        "digital planner 2026"
+      ]
+    }
+  },
+  "checklist_base": {
+    "match_rules": [
+      {
+        "priority": 10,
+        "product_kinds": [
+          "checklist"
+        ]
+      }
+    ],
+    "product_kind": "checklist",
+    "product_type": "printable_checklist",
+    "default_layout_profile": "checklist_generic",
+    "default_linking_profile": "weekly_overview",
+    "delivery_format": "pdf",
+    "supports_hyperlinks": false,
+    "dated": false,
+    "year": null,
+    "required_artifacts": [
+      "deliverable_pdf",
+      "preview_pdf",
+      "master_png",
+      "mockup_png",
+      "seo_txt",
+      "source_csv"
+    ],
+    "preview_assets_required": [
+      "preview_pdf",
+      "master_png",
+      "mockup_png"
+    ],
+    "must_have_files": [
+      "deliverable.pdf",
+      "preview.pdf",
+      "master.png",
+      "mockup.png",
+      "SEO.txt",
+      "source_rows.csv"
+    ],
+    "must_have_sections": [
+      "weekly_overview",
+      "room_checklists",
+      "adhd_rewards",
+      "printable_pages"
+    ],
+    "content_modules": [
+      "weekly_overview",
+      "room_checklists",
+      "dopamine_rewards",
+      "printable_pages"
+    ],
+    "page_rules": {
+      "weeks_per_room": 4,
+      "room_count": 7,
+      "theme_count": 5
+    },
+    "qa_checks": [
+      "required_files_present",
+      "titles_not_empty",
+      "links_valid_if_present",
+      "source_csv_present"
+    ],
+    "qa_thresholds": {
+      "min_page_count": 1,
+      "hyperlink_required": false
+    },
+    "render_plan": {
+      "engine": "printable_checklist_pipeline",
+      "csv_generator": "generate_full_cleaning_checklist_csv",
+      "pdf_renderer": "build_checklist_pdf",
+      "csv_profile": "checklist_generic",
+      "linking_profile": "weekly_overview"
+    },
+    "listing_defaults": {
+      "category": "cleaning_checklists",
+      "format_hint": "Printable PDF (A4 / US Letter)",
+      "tags": [
+        "adhd cleaning checklist",
+        "printable cleaning checklist",
+        "adhd chore chart",
+        "cleaning printable",
+        "instant download"
+      ]
+    }
+  },
+  "budget_sheet_base": {
+    "match_rules": [
+      {
+        "priority": 10,
+        "product_kinds": [
+          "spreadsheet"
+        ],
+        "combined_contains": [
+          "budget",
+          "finance",
+          "savings"
+        ]
+      },
+      {
+        "priority": 50,
+        "product_kinds": [
+          "spreadsheet"
+        ]
+      }
+    ],
+    "product_kind": "spreadsheet",
+    "product_type": "budget_system",
+    "default_layout_profile": "budget_dashboard",
+    "default_linking_profile": "sheet_navigation",
+    "delivery_format": "sheet_pdf",
+    "supports_hyperlinks": false,
+    "dated": false,
+    "year": null,
+    "required_artifacts": [
+      "deliverable_xlsx",
+      "deliverable_pdf",
+      "master_png",
+      "mockup_png",
+      "seo_txt",
+      "preview_pdf",
+      "source_csv"
+    ],
+    "preview_assets_required": [
+      "preview_pdf",
+      "master_png",
+      "mockup_png"
+    ],
+    "must_have_files": [
+      "deliverable.xlsx",
+      "deliverable.pdf",
+      "preview.pdf",
+      "master.png",
+      "mockup.png",
+      "SEO.txt",
+      "source_rows.csv"
+    ],
+    "must_have_sections": [
+      "transactions",
+      "monthly_overview",
+      "dashboard"
+    ],
+    "content_modules": [
+      "transactions",
+      "monthly_overview",
+      "dashboard"
+    ],
+    "page_rules": {
+      "sheet_count": 3
+    },
+    "qa_checks": [
+      "required_files_present",
+      "sheet_structure_present"
+    ],
+    "qa_thresholds": {
+      "must_have_sheets": [
+        "Transactions",
+        "Dashboard"
+      ]
+    },
+    "render_plan": {
+      "engine": "sheet_pipeline",
+      "csv_generator": null,
+      "pdf_renderer": null,
+      "csv_profile": null,
+      "linking_profile": "sheet_navigation"
+    },
+    "listing_defaults": {
+      "category": "spreadsheets",
+      "format_hint": "Google Sheets + optional PDF preview",
+      "tags": [
+        "budget spreadsheet",
+        "monthly budget",
+        "finance tracker",
+        "savings planner",
+        "digital spreadsheet"
+      ]
+    }
+  },
+  "notion_companion_base": {
+    "match_rules": [
+      {
+        "priority": 10,
+        "product_kinds": [
+          "notion_companion"
+        ],
+        "combined_contains": [
+          "notion",
+          "dashboard",
+          "second brain",
+          "crm",
+          "business",
+          "content"
+        ]
+      },
+      {
+        "priority": 50,
+        "product_kinds": [
+          "notion_companion"
+        ]
+      }
+    ],
+    "product_kind": "notion_companion",
+    "product_type": "notion_companion_guide",
+    "default_layout_profile": "notion_companion_guide",
+    "default_linking_profile": "not_applicable",
+    "delivery_format": "pdf",
+    "supports_hyperlinks": false,
+    "dated": false,
+    "year": null,
+    "required_artifacts": [
+      "deliverable_pdf",
+      "preview_pdf",
+      "master_png",
+      "mockup_png",
+      "seo_txt",
+      "source_csv"
+    ],
+    "preview_assets_required": [
+      "preview_pdf",
+      "master_png",
+      "mockup_png"
+    ],
+    "must_have_files": [
+      "deliverable.pdf",
+      "preview.pdf",
+      "master.png",
+      "mockup.png",
+      "SEO.txt",
+      "source_rows.csv"
+    ],
+    "must_have_sections": [
+      "start_here",
+      "setup_steps",
+      "workflow_checklists",
+      "buyer_guidance"
+    ],
+    "content_modules": [
+      "start_here",
+      "setup_steps",
+      "workflow_checklists",
+      "buyer_guidance"
+    ],
+    "page_rules": {
+      "min_pages": 4
+    },
+    "qa_checks": [
+      "required_files_present",
+      "titles_not_empty",
+      "source_csv_present"
+    ],
+    "qa_thresholds": {
+      "min_page_count": 4,
+      "hyperlink_required": false
+    },
+    "render_plan": {
+      "engine": "notion_companion_pdf_pipeline",
+      "csv_generator": null,
+      "pdf_renderer": "build_notion_companion_pdf",
+      "csv_profile": "notion_companion",
+      "linking_profile": "not_applicable"
+    },
+    "listing_defaults": {
+      "category": "notion_templates",
+      "format_hint": "PDF setup guide + companion checklist for a Notion template",
+      "tags": [
+        "notion template guide",
+        "notion companion",
+        "notion setup guide",
+        "notion workflow pdf",
+        "digital download"
+      ]
+    }
+  },
+  "wedding_planner_base": {
+    "match_rules": [
+      {
+        "priority": 5,
+        "product_kinds": [
+          "planner"
+        ],
+        "combined_contains": [
+          "wedding",
+          "bride",
+          "bridal"
+        ]
+      }
+    ],
+    "product_kind": "planner",
+    "product_type": "wedding_planner",
+    "default_layout_profile": "wedding_planner_classic",
+    "default_linking_profile": "planner_monthly_tabs",
+    "delivery_format": "pdf",
+    "supports_hyperlinks": true,
+    "dated": false,
+    "year": null,
+    "required_artifacts": [
+      "deliverable_pdf",
+      "preview_pdf",
+      "master_png",
+      "mockup_png",
+      "seo_txt",
+      "source_csv"
+    ],
+    "preview_assets_required": [
+      "preview_pdf",
+      "master_png",
+      "mockup_png"
+    ],
+    "must_have_files": [
+      "deliverable.pdf",
+      "preview.pdf",
+      "master.png",
+      "mockup.png",
+      "SEO.txt",
+      "source_rows.csv"
+    ],
+    "must_have_sections": [
+      "yearly_overview",
+      "monthly_overviews",
+      "weekly_pages",
+      "extra_templates"
+    ],
+    "content_modules": [
+      "yearly_overview",
+      "monthly_overviews",
+      "weekly_pages",
+      "checklists",
+      "extra_templates"
+    ],
+    "page_rules": {
+      "months": 12,
+      "weeks": 52,
+      "theme_count": 5
+    },
+    "planner_structure": {
+      "yearly_pages": 1,
+      "monthly_pages": 12,
+      "weekly_pages": 52,
+      "daily_pages": 0,
+      "extra_templates": [
+        "guest_list",
+        "budget",
+        "vendors",
+        "timeline",
+        "seating_chart"
+      ]
+    },
+    "hyperlink_model": {
+      "home": "yearly_overview",
+      "tabs": "monthly_overview",
+      "monthly_to_yearly": true,
+      "extra_nav": [
+        "guest_list",
+        "budget",
+        "vendors"
+      ]
+    },
+    "qa_checks": [
+      "required_files_present",
+      "titles_not_empty",
+      "links_valid_if_present",
+      "source_csv_present",
+      "min_page_count"
+    ],
+    "qa_thresholds": {
+      "min_page_count": 60,
+      "hyperlink_required": true,
+      "required_months": 12
+    },
+    "render_plan": {
+      "engine": "planner_pdf_pipeline",
+      "csv_generator": "generate_full_adhd_planner_csv",
+      "pdf_renderer": "build_planner_pdf",
+      "csv_profile": "wedding_planner",
+      "linking_profile": "planner_monthly_tabs"
+    },
+    "preview_sampling": {
+      "max_pages": 8,
+      "include_page_types": [
+        "cover",
+        "yearly_overview",
+        "monthly_overview",
+        "weekly_page",
+        "extra_template"
+      ]
+    },
+    "listing_defaults": {
+      "category": "wedding_planners",
+      "format_hint": "PDF for GoodNotes / Notability / Xodo",
+      "tags": [
+        "wedding planner pdf",
+        "bridal planner",
+        "wedding organizer",
+        "digital wedding planner",
+        "wedding checklist"
+      ]
+    }
+  },
+  "notion_companion_legacy_base": {
+    "match_rules": [
+      {
+        "priority": 5,
+        "product_kinds": [
+          "planner"
+        ],
+        "combined_contains": [
+          "notion",
+          "second brain",
+          "dashboard"
+        ]
+      }
+    ],
+    "product_kind": "planner",
+    "product_type": "notion_companion",
+    "default_layout_profile": "notion_companion_clean",
+    "default_linking_profile": "planner_monthly_tabs",
+    "delivery_format": "pdf",
+    "supports_hyperlinks": true,
+    "dated": false,
+    "year": null,
+    "required_artifacts": [
+      "deliverable_pdf",
+      "preview_pdf",
+      "master_png",
+      "mockup_png",
+      "seo_txt",
+      "source_csv"
+    ],
+    "preview_assets_required": [
+      "preview_pdf",
+      "master_png",
+      "mockup_png"
+    ],
+    "must_have_files": [
+      "deliverable.pdf",
+      "preview.pdf",
+      "master.png",
+      "mockup.png",
+      "SEO.txt",
+      "source_rows.csv"
+    ],
+    "must_have_sections": [
+      "yearly_overview",
+      "monthly_overviews",
+      "weekly_pages",
+      "extra_templates"
+    ],
+    "content_modules": [
+      "yearly_overview",
+      "monthly_overviews",
+      "weekly_pages",
+      "project_tracking",
+      "extra_templates"
+    ],
+    "page_rules": {
+      "months": 12,
+      "weeks": 52,
+      "theme_count": 5
+    },
+    "planner_structure": {
+      "yearly_pages": 1,
+      "monthly_pages": 12,
+      "weekly_pages": 52,
+      "daily_pages": 0,
+      "extra_templates": [
+        "project_board",
+        "content_calendar",
+        "meeting_notes",
+        "goals",
+        "brain_dump"
+      ]
+    },
+    "hyperlink_model": {
+      "home": "yearly_overview",
+      "tabs": "monthly_overview",
+      "monthly_to_yearly": true,
+      "extra_nav": [
+        "project_board",
+        "content_calendar",
+        "meeting_notes"
+      ]
+    },
+    "qa_checks": [
+      "required_files_present",
+      "titles_not_empty",
+      "links_valid_if_present",
+      "source_csv_present",
+      "min_page_count"
+    ],
+    "qa_thresholds": {
+      "min_page_count": 60,
+      "hyperlink_required": true,
+      "required_months": 12
+    },
+    "render_plan": {
+      "engine": "planner_pdf_pipeline",
+      "csv_generator": "generate_full_adhd_planner_csv",
+      "pdf_renderer": "build_planner_pdf",
+      "csv_profile": "notion_companion",
+      "linking_profile": "planner_monthly_tabs"
+    },
+    "preview_sampling": {
+      "max_pages": 8,
+      "include_page_types": [
+        "cover",
+        "yearly_overview",
+        "monthly_overview",
+        "weekly_page",
+        "extra_template"
+      ]
+    },
+    "listing_defaults": {
+      "category": "notion_companions",
+      "format_hint": "PDF companion + Notion-friendly planning system",
+      "tags": [
+        "notion planner",
+        "notion dashboard",
+        "second brain pdf",
+        "project planner",
+        "digital productivity"
+      ]
+    }
+  }
+}

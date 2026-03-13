@@ -1,0 +1,202 @@
+# Provider registry config
+#
+# Notes:
+# - Secrets are never stored here. Each provider references an env var.
+# - .env.scrape.local is the source-of-truth for scraping provider keys.
+# - Phase 1 runtime still uses a single active provider per channel, but all
+#   candidate providers are declared here so doctor/config validation can cover
+#   the full pool.
+
+providers:
+  scrapedo:
+    type: scrapedo
+    adapter: scrapedo
+    transport: rest_api
+    enabled: true
+    api_key_env: SCRAPEDO_TOKEN
+    endpoint_env: SCRAPEDO_ENDPOINT
+    endpoint_default: https://api.scrape.do/
+    default_params:
+      customHeaders: "false"
+
+  scraperapi:
+    type: scraperapi
+    adapter: scraperapi
+    transport: rest_api
+    enabled: false
+    api_key_env: SCRAPER_API_KEY
+    endpoint_env: SCRAPER_API_ENDPOINT
+    endpoint_default: https://api.scraperapi.com/
+    default_params: {}
+
+  webscrapingapi:
+    type: webscrapingapi
+    adapter: webscrapingapi
+    transport: rest_api
+    enabled: false
+    api_key_env: WEBSCRAPINGAPI_KEY
+    endpoint_env: WEBSCRAPINGAPI_ENDPOINT
+    endpoint_default: https://api.webscrapingapi.com/v1
+    default_params: {}
+
+  scrapingbee:
+    type: scrapingbee
+    adapter: scrapingbee
+    transport: rest_api
+    enabled: true
+    api_key_env: SCRAPINGBEE_KEY
+    endpoint_env: SCRAPINGBEE_ENDPOINT
+    endpoint_default: https://app.scrapingbee.com/api/v1/
+    default_params: {}
+
+  zenrows:
+    type: zenrows
+    adapter: zenrows
+    transport: rest_api
+    enabled: false
+    api_key_env: ZENROWS_KEY
+    endpoint_env: ZENROWS_ENDPOINT
+    endpoint_default: https://api.zenrows.com/v1/
+    default_params: {}
+
+  apify_proxy:
+    type: apify_proxy
+    adapter: apify_proxy
+    transport: http_proxy
+    enabled: true
+    api_key_env: APIFY_PROXY_PASSWORD
+    endpoint_default: proxy.apify.com:8000
+    default_params:
+      proxy_username: auto
+
+  brightdata:
+    type: brightdata
+    adapter: brightdata
+    transport: http_proxy
+    enabled: true
+    api_key_env: BRIGHT_DATA_AUTH
+    endpoint_env: BRIGHT_DATA_ENDPOINT
+    endpoint_default: brd.superproxy.io:33335
+    default_params: {}
+
+  oxylabs:
+    type: oxylabs
+    adapter: oxylabs
+    transport: http_proxy
+    enabled: false
+    api_key_env: OXYLABS_KEY
+    endpoint_default: realtime.oxylabs.io:60000
+    default_params: {}
+
+channels:
+  etsy_search_html:
+    waterfall:
+      cheap:
+        - tier_1
+      balanced:
+        - tier_1
+      expensive:
+        - tier_1
+    tiers:
+      tier_1:
+        providers:
+          - scrapedo
+        default_params:
+          super: "true"
+          geoCode: us
+          render: "false"
+      tier_2:
+        providers:
+          - zenrows
+          - apify_proxy
+        default_params:
+          render: "true"
+      tier_3:
+        providers:
+          - brightdata
+          - oxylabs
+        default_params:
+          render: "true"
+
+  etsy_listing_html:
+    waterfall:
+      cheap:
+        - tier_1
+      balanced:
+        - tier_1
+      expensive:
+        - tier_1
+    tiers:
+      tier_1:
+        providers:
+          - scrapedo
+        default_params:
+          super: "true"
+          geoCode: us
+          render: "false"
+      tier_2:
+        providers:
+          - zenrows
+          - apify_proxy
+        default_params:
+          render_js: "true"
+      tier_3:
+        providers:
+          - brightdata
+          - oxylabs
+        default_params:
+          render: "true"
+
+  ebay_search_html:
+    waterfall:
+      cheap:
+        - tier_1
+      balanced:
+        - tier_1
+      expensive:
+        - tier_1
+    tiers:
+      tier_1:
+        providers:
+          - scrapedo
+        default_params:
+          render: "false"
+      tier_2:
+        providers:
+          - zenrows
+          - apify_proxy
+        default_params:
+          render: "false"
+      tier_3:
+        providers:
+          - brightdata
+          - oxylabs
+        default_params:
+          render: "true"
+
+  google_serp_html:
+    waterfall:
+      cheap:
+        - tier_1
+      balanced:
+        - tier_1
+      expensive:
+        - tier_1
+    tiers:
+      tier_1:
+        providers:
+          - scrapedo
+        default_params:
+          render_js: "false"
+      tier_2:
+        providers:
+          - zenrows
+          - apify_proxy
+        default_params:
+          render_js: "false"
+      tier_3:
+        providers:
+          - brightdata
+          - oxylabs
+        default_params:
+          render: "true"

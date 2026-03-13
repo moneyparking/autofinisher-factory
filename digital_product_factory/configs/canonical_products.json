@@ -1,0 +1,20 @@
+{
+  "cases": [
+    {
+      "niche_id": "2026_adhd_digital_planner_v1",
+      "product_kind": "planner"
+    },
+    {
+      "niche_id": "2026_adhd_digital_planner_v1",
+      "product_kind": "checklist"
+    },
+    {
+      "niche_id": "budget_spreadsheet_v1",
+      "product_kind": "spreadsheet"
+    },
+    {
+      "niche_id": "notion_freelancer_template_crm_client_tracker_business_planner_project_management_v1",
+      "product_kind": "notion_companion"
+    }
+  ]
+}
