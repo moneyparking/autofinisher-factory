@@ -61,6 +61,25 @@ Recommended reading order:
 - Run monitoring only on current batch: `python3 batch_reference_monitor.py`
 - Refresh local memory: `python3 memory_agent/refresh_memory.py`
 
+## Etsy Ads wedge-first v1 note
+
+### English
+
+For Etsy Ads wedge-first bundles, a v1-green output requires more than profitability/ROAS analysis.
+The minimum v1 product contract is met only when the pipeline extracts at least one operational decision-layer sub-wedge (for example, listing-level pause/scale logic, winner/loser handling, or testing-driven ad decisions) that can support a stronger actionable bundle.
+
+Short version:
+Profitability and ROAS alone are not sufficient for a v1-green Etsy Ads bundle.
+A v1 pass requires at least one operational decision-system wedge that produces a materially stronger workflow-level offer.
+
+### Русская версия
+
+Для Etsy Ads v1-зелёный результат требует не только аналитических wedge’ов уровня profitability/ROAS, но и как минимум одного operational sub-wedge’а уровня decision workflow.
+Если из транскрипта не извлекается отдельный listing-level / pause-scale / winner-loser decision layer, такой кейс считается продуктово неполным и остаётся v1_fail.
+
+Коротко:
+Profitability/ROAS без decision-layer = v1_fail.
+
 ## Current source of truth
 
 For scoring and validation:

@@ -1,0 +1,78 @@
+{
+  "cluster_name": "etsy_ads_cluster_v1",
+  "wedge_mode": true,
+  "videos": [
+    {
+      "video_id": "ztcfOv8uv6U",
+      "role": "batch",
+      "url": "https://www.youtube.com/watch?v=ztcfOv8uv6U",
+      "transcript_file": "transcripts/ztcfOv8uv6U.txt"
+    },
+    {
+      "video_id": "WNQgc8NzLYc",
+      "role": "batch",
+      "url": "https://www.youtube.com/watch?v=WNQgc8NzLYc",
+      "transcript_file": "transcripts/WNQgc8NzLYc.txt"
+    },
+    {
+      "video_id": "xLmnJYWHQ34",
+      "role": "batch",
+      "url": "https://www.youtube.com/watch?v=xLmnJYWHQ34",
+      "transcript_file": "transcripts/xLmnJYWHQ34.txt"
+    },
+    {
+      "video_id": "D107mfmR27M",
+      "role": "batch",
+      "url": "https://www.youtube.com/watch?v=D107mfmR27M",
+      "transcript_file": "transcripts/D107mfmR27M.txt"
+    },
+    {
+      "video_id": "5vXGrgql6Jg",
+      "role": "batch",
+      "url": "https://www.youtube.com/watch?v=5vXGrgql6Jg",
+      "transcript_file": "transcripts/5vXGrgql6Jg.txt"
+    },
+    {
+      "video_id": "SeULgy3Dgi0",
+      "role": "batch",
+      "url": "https://www.youtube.com/watch?v=SeULgy3Dgi0",
+      "transcript_file": "transcripts/SeULgy3Dgi0.txt"
+    },
+    {
+      "video_id": "0Xrx-OXQmd4",
+      "role": "batch",
+      "url": "https://www.youtube.com/watch?v=0Xrx-OXQmd4",
+      "transcript_file": "transcripts/0Xrx-OXQmd4.txt"
+    },
+    {
+      "video_id": "9-us_15_Z9I",
+      "role": "batch",
+      "url": "https://www.youtube.com/watch?v=9-us_15_Z9I",
+      "transcript_file": "transcripts/9-us_15_Z9I.txt"
+    },
+    {
+      "video_id": "8Jtp2WDrU3M",
+      "role": "batch",
+      "url": "https://www.youtube.com/watch?v=8Jtp2WDrU3M",
+      "transcript_file": "transcripts/8Jtp2WDrU3M.txt"
+    },
+    {
+      "video_id": "p5j8pYbeUJs",
+      "role": "batch",
+      "url": "https://www.youtube.com/watch?v=p5j8pYbeUJs",
+      "transcript_file": "transcripts/p5j8pYbeUJs.txt"
+    },
+    {
+      "video_id": "AC1zd_TTVf0",
+      "role": "control",
+      "url": "https://www.youtube.com/watch?v=AC1zd_TTVf0",
+      "transcript_file": "transcripts/AC1zd_TTVf0.txt"
+    },
+    {
+      "video_id": "sUuA2_k9g18",
+      "role": "control",
+      "url": "https://www.youtube.com/watch?v=sUuA2_k9g18",
+      "transcript_file": "transcripts/sUuA2_k9g18.txt"
+    }
+  ]
+}

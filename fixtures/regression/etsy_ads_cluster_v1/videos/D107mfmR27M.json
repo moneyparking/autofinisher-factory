@@ -1,0 +1,144 @@
+{
+  "video_id": "D107mfmR27M",
+  "role": "batch",
+  "fixture_version": "etsy_ads_cluster_v1",
+  "expected_contract": {
+    "quality_gate": {
+      "passed": true,
+      "wedge_mode": true,
+      "min_ideas_exact": 10,
+      "min_fms_exact": 45.0,
+      "min_bundle_power_exact": 7.5,
+      "idea_count_min": 10,
+      "top_fms_score_min": 68.5,
+      "top_bundle_power_min": 9.0
+    },
+    "parent_wedge": {
+      "domain_exact": "etsy_ads",
+      "ads_context_confirmed_exact": true,
+      "origin_exact": "parent_wedge_from_transcript"
+    },
+    "sub_wedges": {
+      "distinct_count_min": 3,
+      "canonical_catalog_only": true,
+      "at_least_one_transcript_native": true,
+      "allowed_origins": [
+        "sub_wedge_backfill_from_parent",
+        "sub_wedge_from_transcript"
+      ],
+      "allowed_evidence_confidence": [
+        "low",
+        "medium"
+      ],
+      "quote_max_chars": 280,
+      "quote_max_words": 40
+    },
+    "validated_ideas": {
+      "item_count_min": 10,
+      "ads_specific_ratio_min": 0.8,
+      "distinct_canonical_sub_wedges_min": 3,
+      "top3_ads_specific_exact": true,
+      "top5_non_generic_exact": true
+    },
+    "digital_bundle_spec": {
+      "file_required": true,
+      "bundle_spec_count_min": 3,
+      "artifact_stack_len_min": 3,
+      "offer_formats_len_min": 3,
+      "sku_ladder_len_min": 3,
+      "factory_tasks_len_min": 5,
+      "price_ladder_sorted": true,
+      "evidence_quote_max_chars": 280,
+      "required_bundle_keys": [
+        "artifact_stack",
+        "bundle_power",
+        "buyer",
+        "evidence",
+        "factory_tasks",
+        "launch_assets",
+        "offer_formats",
+        "outcome",
+        "pain",
+        "price_ladder",
+        "primary_channel",
+        "promise",
+        "secondary_channel",
+        "sku_ladder",
+        "sub_wedge_id",
+        "top_fms_score",
+        "video_id",
+        "wedge"
+      ]
+    }
+  },
+  "v1_floor": {
+    "quality_gate": {
+      "idea_count_min": 10,
+      "top_fms_score_min": 54.75,
+      "top_bundle_power_min": 9.0
+    },
+    "sub_wedges": {
+      "distinct_count_min": 2,
+      "quote_max_chars": 420,
+      "quote_max_words": 70
+    },
+    "validated_ideas": {
+      "item_count_min": 10,
+      "ads_specific_ratio_min": 0.8,
+      "distinct_canonical_sub_wedges_min": 2
+    },
+    "digital_bundle_spec": {
+      "bundle_spec_count_min": 2,
+      "evidence_quote_max_chars": 420
+    }
+  },
+  "baseline_observed": {
+    "quality_gate": {
+      "idea_count": 10,
+      "top_fms_score": 68.5,
+      "top_bundle_power": 9.8,
+      "attempt": 1
+    },
+    "parent_wedge": {
+      "domain": "etsy_ads",
+      "origin": "parent_wedge_from_transcript",
+      "wedge": "etsy ads profitability system"
+    },
+    "sub_wedges": {
+      "count": 2,
+      "distinct_canonical_ids": [
+        "etsy_ads_profitability_system",
+        "etsy_break_even_roas_calculator"
+      ],
+      "transcript_native_count": 2,
+      "quote_char_max": 227,
+      "quote_word_max": 40
+    },
+    "validated_ideas": {
+      "item_count": 10,
+      "ads_specific_ratio": 1.0,
+      "distinct_canonical_sub_wedges": [
+        "etsy_ads_profitability_system",
+        "etsy_break_even_roas_calculator"
+      ],
+      "top3_ads_specific": true,
+      "top5_non_generic": true,
+      "top_titles": [
+        "Etsy Ads Profitability System KPI Dashboard",
+        "Etsy Ads Profitability System Bundle",
+        "Etsy Ads Profitability System Mini Course",
+        "Etsy Ads Profitability System Calculator",
+        "Etsy Ads Profitability System Checklist Kit"
+      ]
+    },
+    "digital_bundle_spec": {
+      "bundle_spec_count": 2,
+      "bundle_spec_ids": [
+        "etsy_ads_profitability_system",
+        "etsy_break_even_roas_calculator"
+      ],
+      "max_evidence_quote_chars": 227,
+      "synthesized_by_fixture_builder": false
+    }
+  }
+}
