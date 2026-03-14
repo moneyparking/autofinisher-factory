@@ -1,0 +1,79 @@
+{
+  "vertical_families": [
+    {
+      "name": "small_business_bookkeeping_tools",
+      "priority": 10,
+      "product_class": "business_template",
+      "seed_keywords": [
+        {"seed": "small business bookkeeping spreadsheet", "bucket": "small_business_bookkeeping_tools"},
+        {"seed": "cash flow tracker for small business", "bucket": "small_business_bookkeeping_tools"},
+        {"seed": "business expense tracker spreadsheet", "bucket": "small_business_bookkeeping_tools"},
+        {"seed": "monthly bookkeeping spreadsheet", "bucket": "small_business_bookkeeping_tools"},
+        {"seed": "income and expense spreadsheet for small business", "bucket": "small_business_bookkeeping_tools"},
+        {"seed": "small business profit tracker", "bucket": "small_business_bookkeeping_tools"},
+        {"seed": "bookkeeping dashboard spreadsheet", "bucket": "small_business_bookkeeping_tools"},
+        {"seed": "small business budget tracker spreadsheet", "bucket": "small_business_bookkeeping_tools"}
+      ]
+    },
+    {
+      "name": "freelancer_client_management_tools",
+      "priority": 10,
+      "product_class": "business_template",
+      "seed_keywords": [
+        {"seed": "freelancer client tracker", "bucket": "freelancer_client_management_tools"},
+        {"seed": "client project tracker spreadsheet", "bucket": "freelancer_client_management_tools"},
+        {"seed": "freelance business dashboard", "bucket": "freelancer_client_management_tools"},
+        {"seed": "client onboarding checklist template", "bucket": "freelancer_client_management_tools"},
+        {"seed": "invoice follow up tracker", "bucket": "freelancer_client_management_tools"},
+        {"seed": "freelancer crm spreadsheet", "bucket": "freelancer_client_management_tools"},
+        {"seed": "project status tracker for freelancers", "bucket": "freelancer_client_management_tools"},
+        {"seed": "client payment tracker spreadsheet", "bucket": "freelancer_client_management_tools"}
+      ]
+    },
+    {
+      "name": "content_creator_performance_tools",
+      "priority": 10,
+      "product_class": "business_template",
+      "seed_keywords": [
+        {"seed": "content tracker spreadsheet", "bucket": "content_creator_performance_tools"},
+        {"seed": "social media analytics tracker", "bucket": "content_creator_performance_tools"},
+        {"seed": "content planning dashboard", "bucket": "content_creator_performance_tools"},
+        {"seed": "video performance tracker", "bucket": "content_creator_performance_tools"},
+        {"seed": "creator income tracker", "bucket": "content_creator_performance_tools"},
+        {"seed": "youtube content tracker spreadsheet", "bucket": "content_creator_performance_tools"},
+        {"seed": "content calendar analytics template", "bucket": "content_creator_performance_tools"},
+        {"seed": "creator dashboard spreadsheet", "bucket": "content_creator_performance_tools"}
+      ]
+    },
+    {
+      "name": "inventory_pricing_margin_tools",
+      "priority": 10,
+      "product_class": "business_template",
+      "seed_keywords": [
+        {"seed": "inventory tracker for small business", "bucket": "inventory_pricing_margin_tools"},
+        {"seed": "product pricing calculator spreadsheet", "bucket": "inventory_pricing_margin_tools"},
+        {"seed": "profit margin calculator for handmade business", "bucket": "inventory_pricing_margin_tools"},
+        {"seed": "reseller inventory spreadsheet", "bucket": "inventory_pricing_margin_tools"},
+        {"seed": "fee tracker spreadsheet", "bucket": "inventory_pricing_margin_tools"},
+        {"seed": "pricing dashboard for small business", "bucket": "inventory_pricing_margin_tools"},
+        {"seed": "cost of goods sold spreadsheet", "bucket": "inventory_pricing_margin_tools"},
+        {"seed": "inventory profit tracker", "bucket": "inventory_pricing_margin_tools"}
+      ]
+    },
+    {
+      "name": "service_business_ops_tools",
+      "priority": 10,
+      "product_class": "business_template",
+      "seed_keywords": [
+        {"seed": "appointment tracker spreadsheet", "bucket": "service_business_ops_tools"},
+        {"seed": "service business dashboard", "bucket": "service_business_ops_tools"},
+        {"seed": "lead tracking spreadsheet", "bucket": "service_business_ops_tools"},
+        {"seed": "job costing spreadsheet", "bucket": "service_business_ops_tools"},
+        {"seed": "small business workflow tracker", "bucket": "service_business_ops_tools"},
+        {"seed": "client scheduling tracker", "bucket": "service_business_ops_tools"},
+        {"seed": "service quote tracker", "bucket": "service_business_ops_tools"},
+        {"seed": "operations checklist spreadsheet", "bucket": "service_business_ops_tools"}
+      ]
+    }
+  ]
+}
