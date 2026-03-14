@@ -63,6 +63,8 @@ Recommended reading order:
 
 ## Etsy Ads wedge-first v1 note
 
+See `docs/ETSY_ADS_V2_CLUSTER_CHECKLIST.md` for the current Etsy Ads v2 execution spec.
+
 ### English
 
 For Etsy Ads wedge-first bundles, a v1-green output requires more than profitability/ROAS analysis.

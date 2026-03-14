@@ -2,11 +2,20 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Any
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+import youtube_cluster_automanifest as yca
+
 BASE_DIR = Path('/home/agent/autofinisher-factory')
-FIXTURE_ROOT = BASE_DIR / 'fixtures' / 'regression' / 'etsy_ads_cluster_v1'
+FIXTURE_NAME = os.getenv('ETSY_ADS_FIXTURE_NAME', 'etsy_ads_cluster_v1').strip() or 'etsy_ads_cluster_v1'
+FIXTURE_ROOT = BASE_DIR / 'fixtures' / 'regression' / FIXTURE_NAME
 VIDEO_FIXTURE_DIR = FIXTURE_ROOT / 'videos'
 OUTPUT_DIR = BASE_DIR / 'youtube_output'
 WEDGE_DIR = BASE_DIR / 'wedge_outputs'
@@ -39,6 +48,36 @@ V1_EVIDENCE_QUOTE_MAX_CHARS = 420
 
 def read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding='utf-8'))
+
+
+
+def write_json(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+
+
+def ensure_cluster_manifest_autogen() -> None:
+    if FIXTURE_NAME != 'etsy_ads_cluster_v2':
+        return
+    inputs_path = FIXTURE_ROOT / 'inputs.json'
+    if not inputs_path.exists():
+        return
+    inputs = read_json(inputs_path)
+    video_entries = inputs.get('videos') or []
+    batch_entries = [entry for entry in video_entries if entry.get('role', 'batch') == 'batch']
+    video_ids = [entry['video_id'] for entry in batch_entries if entry.get('video_id')]
+    if not video_ids:
+        return
+    yca.generate_automanifest(
+        {
+            'cluster_id': FIXTURE_NAME,
+            'topic_cluster': 'etsy_ads_v2',
+            'video_ids': video_ids,
+            'language_hint': 'en',
+            'default_tier': 'A',
+        }
+    )
 
 
 def normalize_slug(value: str | None) -> str:
@@ -355,6 +394,7 @@ def validate_video_fixture(fixture: dict[str, Any], errors: list[str]) -> dict[s
 
 
 def main() -> int:
+    ensure_cluster_manifest_autogen()
     inputs = read_json(FIXTURE_ROOT / 'inputs.json')
     cluster_manifest = read_json(FIXTURE_ROOT / 'cluster_manifest.json')
     errors: list[str] = []
@@ -378,8 +418,22 @@ def main() -> int:
     v1_fail_count = len(status_buckets[STATUS_V1_FAIL])
     hard_fail_count = len(status_buckets[STATUS_HARD_FAIL])
 
-    cluster_contract = cluster_manifest['cluster_contract']
-    cluster_v1_floor = cluster_manifest.get('cluster_v1_floor') or {}
+    cluster_contract = cluster_manifest.get('cluster_contract') or {
+        'expected_pass_count_exact': len(batch_results),
+        'allowed_fail_count_exact': 0,
+        'min_idea_count_across_cluster': 10,
+        'min_top_fms_across_cluster': 68.5,
+        'min_top_bundle_power_across_cluster': 9.0,
+        'min_distinct_sub_wedges_across_cluster': 3,
+        'digital_bundle_spec_required_for_all': True,
+        'domains_only': ['etsy_ads'],
+    }
+    cluster_v1_floor = cluster_manifest.get('cluster_v1_floor') or {
+        'min_idea_count_across_cluster': 10,
+        'min_top_fms_across_cluster': 54.75,
+        'min_top_bundle_power_across_cluster': 9.0,
+        'min_distinct_sub_wedges_across_cluster': 2,
+    }
     if min((item['quality_gate']['idea_count'] or 0 for item in batch_results), default=0) < cluster_v1_floor.get('min_idea_count_across_cluster', cluster_contract['min_idea_count_across_cluster']):
         errors.append('cluster: min idea count below v1 floor')
     if min((float(item['quality_gate']['top_fms_score'] or 0.0) for item in batch_results), default=0.0) < max(V1_FMS_FLOOR, float(cluster_v1_floor.get('min_top_fms_across_cluster', V1_FMS_FLOOR) or 0.0)):
@@ -393,6 +447,7 @@ def main() -> int:
 
     report = {
         'fixture_root': str(FIXTURE_ROOT),
+        'fixture_name': FIXTURE_NAME,
         'video_count_checked': len(results),
         'batch_video_count_checked': len(batch_results),
         'hard_fail_count': hard_fail_count,
@@ -407,6 +462,7 @@ def main() -> int:
         'errors': errors,
         'results': results,
     }
+    write_json(FIXTURE_ROOT / 'validator_report.json', report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 1 if hard_fail_count or v1_fail_count or errors else 0
 
