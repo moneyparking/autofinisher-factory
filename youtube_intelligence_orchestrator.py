@@ -171,6 +171,20 @@ def dedupe_pain_results(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return deduped
 
 
+def dedupe_subwedges_by_id(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in items:
+        sub_id = normalize_space(item.get("id") or item.get("sub_wedge_id") or item.get("wedge") or "").lower()
+        if not sub_id:
+            sub_id = normalize_space(item.get("wedge", "")).lower()
+        if sub_id in seen:
+            continue
+        seen.add(sub_id)
+        deduped.append(item)
+    return deduped
+
+
 def is_etsy_ads_signal(text: str) -> bool:
     low = normalize_space(text).lower()
     tokens = {
@@ -189,6 +203,40 @@ def is_etsy_ads_signal(text: str) -> bool:
     return any(token in low for token in tokens)
 
 
+DECISION_KEYPHRASES = [
+    "pause the losers",
+    "keep the winners",
+    "pause losers",
+    "turn off losers",
+    "kill losers",
+    "pause the bad listings",
+    "pause this ad",
+    "scale the winners",
+    "scale this",
+    "raise the budget",
+    "lower the bid",
+    "increase the budget",
+    "decrease the budget",
+    "increase bid",
+    "decrease bid",
+    "per listing",
+    "per product",
+    "this listing gets",
+    "allocate budget to",
+    "spend on each",
+    "run it for",
+    "after 2 to 4 weeks",
+    "after 2-4 weeks",
+    "after a few weeks",
+    "once you have enough data",
+    "enough data",
+    "winners",
+    "losers",
+    "heavy hitters",
+    "listings that aren't profitable",
+]
+
+
 def is_strong_etsy_ads_wedge(wedge: str) -> bool:
     return normalize_space(wedge).lower() in {
         "etsy ads profitability system",
@@ -198,6 +246,97 @@ def is_strong_etsy_ads_wedge(wedge: str) -> bool:
         "etsy listing-level ad decision system",
         "etsy ad testing",
     }
+
+
+def has_decision_layer_snippets(transcript_text: str) -> bool:
+    low = normalize_space(transcript_text).lower()
+    return any(phrase in low for phrase in DECISION_KEYPHRASES)
+
+
+def select_sentence_window(sentences: list[str], index: int, radius: int = 1, max_sentences: int = 3) -> str:
+    if not sentences:
+        return ""
+    start = max(0, index - radius)
+    end = min(len(sentences), index + radius + 1)
+    window = [normalize_space(sentence) for sentence in sentences[start:end] if normalize_space(sentence)]
+    if not window:
+        return ""
+    return normalize_space(" ".join(window[:max_sentences]))
+
+
+def build_evidence_quote(
+    sentences: list[str],
+    patterns: list[str],
+    fallback_text: str,
+    *,
+    radius: int = 1,
+    max_sentences: int = 3,
+) -> str:
+    fallback = normalize_space(fallback_text)
+    for idx, sentence in enumerate(sentences):
+        low = sentence.lower()
+        if any(pattern in low for pattern in patterns):
+            window = select_sentence_window(sentences, idx, radius=radius, max_sentences=max_sentences)
+            if window:
+                return trim_evidence_quote_text(window, max_chars=QUOTE_MAX_CHARS, max_words=QUOTE_MAX_WORDS)
+    compact_sentences = [normalize_space(sentence) for sentence in sentences if normalize_space(sentence)]
+    if compact_sentences:
+        return trim_evidence_quote_text(" ".join(compact_sentences[:max_sentences]), max_chars=QUOTE_MAX_CHARS, max_words=QUOTE_MAX_WORDS)
+    return trim_evidence_quote_text(fallback[:600], max_chars=QUOTE_MAX_CHARS, max_words=QUOTE_MAX_WORDS)
+
+
+def clean_evidence_quote_text(text: str) -> str:
+    cleaned = normalize_space(text)
+    cleaned = re.sub(r"(?<!\d)\d{1,2}:\d{2}(?!\d)", " ", cleaned)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    cleaned = cleaned.strip(" -.,;:")
+    return normalize_space(cleaned)
+
+
+QUOTE_MAX_CHARS = 280
+QUOTE_MAX_WORDS = 40
+
+
+def trim_quote_to_word_limit(text: str, max_words: int, suffix: str = "…") -> str:
+    cleaned = normalize_space(text)
+    if not cleaned:
+        return ""
+    words = cleaned.strip().split()
+    if len(words) <= max_words:
+        return " ".join(words)
+    return normalize_space(" ".join(words[:max_words]).rstrip(" ,;:-") + suffix)
+
+
+def trim_evidence_quote_text(text: str, *, max_chars: int = QUOTE_MAX_CHARS, max_words: int = QUOTE_MAX_WORDS) -> str:
+    cleaned = clean_evidence_quote_text(text)
+    cleaned = trim_quote_to_word_limit(cleaned, max_words=max_words)
+    if len(cleaned) > max_chars:
+        clipped = cleaned[:max_chars].rsplit(" ", 1)[0].strip()
+        cleaned = (clipped or cleaned[:max_chars].strip()).rstrip(" ,;:-")
+        if cleaned and not cleaned.endswith("…") and len(cleaned.split()) >= max_words:
+            cleaned = f"{cleaned}…"
+    return normalize_space(cleaned)
+
+
+def build_evidence_quote_from_chunks(
+    chunks: list[dict[str, Any]],
+    patterns: list[str],
+    fallback_text: str,
+    *,
+    radius: int = 1,
+    max_chunks: int = 3,
+) -> str:
+    fallback = clean_evidence_quote_text(fallback_text)
+    compact_chunks = [clean_evidence_quote_text(item.get("text", "")) for item in chunks if clean_evidence_quote_text(item.get("text", ""))]
+    if not compact_chunks:
+        return trim_evidence_quote_text(fallback[:600], max_chars=QUOTE_MAX_CHARS, max_words=QUOTE_MAX_WORDS)
+    for idx, text in enumerate(compact_chunks):
+        low = text.lower()
+        if any(pattern in low for pattern in patterns):
+            start = max(0, idx - radius)
+            end = min(len(compact_chunks), idx + radius + 1)
+            return trim_evidence_quote_text(" ".join(compact_chunks[start:end][:max_chunks]), max_chars=QUOTE_MAX_CHARS, max_words=QUOTE_MAX_WORDS)
+    return trim_evidence_quote_text(" ".join(compact_chunks[:max_chunks]), max_chars=QUOTE_MAX_CHARS, max_words=QUOTE_MAX_WORDS)
 
 
 def build_etsy_ads_subwedge_profile(sub_wedge_id: str) -> dict[str, Any] | None:
@@ -294,10 +433,18 @@ def build_etsy_ads_subwedge_profile(sub_wedge_id: str) -> dict[str, Any] | None:
     return json.loads(json.dumps(profile))
 
 
-def build_etsy_ads_parent_wedge(video_id: str, transcript_text: str) -> dict[str, Any]:
+def build_etsy_ads_parent_wedge(video_id: str, transcript_text: str, transcript_chunks: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     cleaned = strip_inline_timestamps(transcript_text)
     sentences = split_sentences(cleaned)
-    quote = next((sentence for sentence in sentences if is_etsy_ads_signal(sentence)), cleaned[:320] or "Etsy Ads context confirmed from transcript.")
+    quote = build_evidence_quote_from_chunks(
+        transcript_chunks or [],
+        ["etsy ads", "ppc", "pay per click", "roas", "ad spend", "break even", "break-even"],
+        build_evidence_quote(
+            sentences,
+            ["etsy ads", "ppc", "pay per click", "roas", "ad spend", "break even", "break-even"],
+            cleaned[:320] or "Etsy Ads context confirmed from transcript.",
+        ),
+    )
     return {
         "id": f"{video_id}_etsy_ads_parent",
         "video_id": video_id,
@@ -313,7 +460,7 @@ def build_etsy_ads_parent_wedge(video_id: str, transcript_text: str) -> dict[str
     }
 
 
-def expand_etsy_ads_subwedges(parent_wedge: dict[str, Any], transcript_text: str) -> list[dict[str, Any]]:
+def expand_etsy_ads_subwedges(parent_wedge: dict[str, Any], transcript_text: str, transcript_chunks: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     if parent_wedge.get("domain") != "etsy_ads" or not parent_wedge.get("ads_context_confirmed"):
         return []
     cleaned = strip_inline_timestamps(transcript_text)
@@ -321,6 +468,8 @@ def expand_etsy_ads_subwedges(parent_wedge: dict[str, Any], transcript_text: str
         return []
     low = cleaned.lower()
     sentences = split_sentences(cleaned)
+    transcript_word_count = len(cleaned.split())
+    etsy_ads_narrow_relaxation = transcript_word_count < 1400
     specs = [
         {
             "id": "etsy_ads_profitability_system",
@@ -340,9 +489,18 @@ def expand_etsy_ads_subwedges(parent_wedge: dict[str, Any], transcript_text: str
         },
         {
             "id": "etsy_listing_level_ad_decision_system",
-            "patterns": ["turning off the listings", "heavy hitters", "winners", "spending the most amount of money", "listings that aren't profitable"],
+            "patterns": [
+                "turning off the listings",
+                "heavy hitters",
+                "winners",
+                "spending the most amount of money",
+                "listings that aren't profitable",
+                *DECISION_KEYPHRASES,
+            ],
         },
     ]
+    spec_patterns = {spec["id"]: spec["patterns"] for spec in specs}
+    decision_layer_detected = has_decision_layer_snippets(cleaned)
     results: list[dict[str, Any]] = []
     for spec in specs:
         if not any(pattern in low for pattern in spec["patterns"]):
@@ -350,7 +508,11 @@ def expand_etsy_ads_subwedges(parent_wedge: dict[str, Any], transcript_text: str
         profile = build_etsy_ads_subwedge_profile(spec["id"])
         if not profile:
             continue
-        quote = next((sentence for sentence in sentences if any(pattern in sentence.lower() for pattern in spec["patterns"])), cleaned[:320])
+        quote = build_evidence_quote_from_chunks(
+            transcript_chunks or [],
+            spec["patterns"],
+            build_evidence_quote(sentences, spec["patterns"], cleaned[:320]),
+        )
         bundle_power = calculate_bundle_power(
             {
                 "artifact_stack": profile.get("artifact_stack") or [],
@@ -384,7 +546,169 @@ def expand_etsy_ads_subwedges(parent_wedge: dict[str, Any], transcript_text: str
                 **profile,
             }
         )
-    return dedupe_pain_results(results)
+
+    results = dedupe_subwedges_by_id(results)
+
+    if decision_layer_detected and "etsy_listing_level_ad_decision_system" not in {normalize_space(item.get("id", "")).lower() for item in results}:
+        profile = build_etsy_ads_subwedge_profile("etsy_listing_level_ad_decision_system")
+        if profile:
+            quote = build_evidence_quote_from_chunks(
+                transcript_chunks or [],
+                spec_patterns.get("etsy_listing_level_ad_decision_system", []),
+                build_evidence_quote(sentences, spec_patterns.get("etsy_listing_level_ad_decision_system", []), cleaned[:320]),
+            )
+            artifact_stack = profile.get("artifact_stack") or []
+            artifact_diversity_hint = min(len(artifact_stack) * 2, 10)
+            bundle_power = calculate_bundle_power(
+                {
+                    "artifact_stack": artifact_stack,
+                    "expected_bundle_tiers": profile.get("expected_bundle_tiers") or [],
+                    "avg_price_hint": profile.get("avg_price_hint"),
+                    "expansion_products": profile.get("expansion_products") or [],
+                    "gumroad_fit_hint": "high",
+                    "bundle_cohesion_hint": "high",
+                    "artifact_diversity_hint": artifact_diversity_hint,
+                }
+            )
+            results.append(
+                {
+                    "id": "etsy_listing_level_ad_decision_system",
+                    "video_id": parent_wedge.get("video_id"),
+                    "parent_wedge_id": parent_wedge["id"],
+                    "domain": "etsy_ads",
+                    "ads_context_confirmed": True,
+                    "origin": "sub_wedge_from_transcript",
+                    "quote": quote,
+                    "primary_channel": "etsy",
+                    "secondary_channel": "gumroad",
+                    "evidence_confidence": "medium",
+                    "claim_verification_status": "unverified",
+                    "source_type": "sub_wedge_from_transcript",
+                    "priority": 1,
+                    "gumroad_fit_hint": "high",
+                    "bundle_cohesion_hint": "high",
+                    "artifact_diversity_hint": artifact_diversity_hint,
+                    "bundle_power": bundle_power,
+                    **profile,
+                }
+            )
+            results = dedupe_subwedges_by_id(results)
+
+    if len(results) < 3:
+        fallback_ids = [
+            "etsy_break_even_roas_calculator",
+            "etsy_ads_testing_tracker",
+            "etsy_ads_margin_guardrail_toolkit",
+            "etsy_listing_level_ad_decision_system",
+        ]
+        existing_ids = {normalize_space(item.get("id", "")).lower() for item in results}
+        for fallback_id in fallback_ids:
+            if len(results) >= 3:
+                break
+            if fallback_id.lower() in existing_ids:
+                continue
+            profile = build_etsy_ads_subwedge_profile(fallback_id)
+            if not profile:
+                continue
+            fallback_quote = build_evidence_quote_from_chunks(
+                transcript_chunks or [],
+                spec_patterns.get(fallback_id, []),
+                build_evidence_quote(
+                    sentences,
+                    spec_patterns.get(fallback_id, []),
+                    parent_wedge.get("quote") or cleaned[:320],
+                ),
+            )
+            artifact_stack = profile.get("artifact_stack") or []
+            artifact_diversity_hint = min(len(artifact_stack) * 2, 10)
+            bundle_power = calculate_bundle_power(
+                {
+                    "artifact_stack": artifact_stack,
+                    "expected_bundle_tiers": profile.get("expected_bundle_tiers") or [],
+                    "avg_price_hint": profile.get("avg_price_hint"),
+                    "expansion_products": profile.get("expansion_products") or [],
+                    "gumroad_fit_hint": "high",
+                    "bundle_cohesion_hint": "high",
+                    "artifact_diversity_hint": artifact_diversity_hint,
+                }
+            )
+            results.append(
+                {
+                    "id": fallback_id,
+                    "video_id": parent_wedge.get("video_id"),
+                    "parent_wedge_id": parent_wedge["id"],
+                    "domain": "etsy_ads",
+                    "ads_context_confirmed": True,
+                    "origin": "sub_wedge_backfill_from_parent",
+                    "quote": fallback_quote,
+                    "primary_channel": "etsy",
+                    "secondary_channel": "gumroad",
+                    "evidence_confidence": "low",
+                    "claim_verification_status": "unverified",
+                    "source_type": "sub_wedge_backfill_from_parent",
+                    "priority": 1,
+                    "gumroad_fit_hint": "high",
+                    "bundle_cohesion_hint": "high",
+                    "artifact_diversity_hint": artifact_diversity_hint,
+                    "bundle_power": bundle_power,
+                    **profile,
+                }
+            )
+            existing_ids.add(fallback_id.lower())
+
+    if etsy_ads_narrow_relaxation and len(results) < 3:
+        for fallback_id in [
+            "etsy_ads_profitability_system",
+            "etsy_break_even_roas_calculator",
+            "etsy_ads_testing_tracker",
+            "etsy_ads_margin_guardrail_toolkit",
+            "etsy_listing_level_ad_decision_system",
+        ]:
+            if len(results) >= 3:
+                break
+            if fallback_id.lower() in existing_ids:
+                continue
+            profile = build_etsy_ads_subwedge_profile(fallback_id)
+            if not profile:
+                continue
+            artifact_stack = profile.get("artifact_stack") or []
+            artifact_diversity_hint = min(len(artifact_stack) * 2, 10)
+            bundle_power = calculate_bundle_power(
+                {
+                    "artifact_stack": artifact_stack,
+                    "expected_bundle_tiers": profile.get("expected_bundle_tiers") or [],
+                    "avg_price_hint": profile.get("avg_price_hint"),
+                    "expansion_products": profile.get("expansion_products") or [],
+                    "gumroad_fit_hint": "high",
+                    "bundle_cohesion_hint": "high",
+                    "artifact_diversity_hint": artifact_diversity_hint,
+                }
+            )
+            results.append(
+                {
+                    "id": fallback_id,
+                    "video_id": parent_wedge.get("video_id"),
+                    "parent_wedge_id": parent_wedge["id"],
+                    "domain": "etsy_ads",
+                    "ads_context_confirmed": True,
+                    "origin": "sub_wedge_backfill_from_parent",
+                    "quote": trim_evidence_quote_text(parent_wedge.get("quote") or cleaned[:320], max_chars=QUOTE_MAX_CHARS, max_words=QUOTE_MAX_WORDS),
+                    "primary_channel": "etsy",
+                    "secondary_channel": "gumroad",
+                    "evidence_confidence": "low",
+                    "claim_verification_status": "unverified",
+                    "source_type": "sub_wedge_backfill_from_parent",
+                    "priority": 1,
+                    "gumroad_fit_hint": "high",
+                    "bundle_cohesion_hint": "high",
+                    "artifact_diversity_hint": artifact_diversity_hint,
+                    "bundle_power": bundle_power,
+                    **profile,
+                }
+            )
+            existing_ids.add(fallback_id.lower())
+
+    return dedupe_subwedges_by_id(results)
 
 
 def write_wedge_expansion_outputs(video_id: str, parent_wedge: dict[str, Any], sub_wedges: list[dict[str, Any]]) -> None:
@@ -908,8 +1232,9 @@ async def agent_pain_extractor(transcript_payload: dict[str, Any], segmenter_dat
     pains: list[dict[str, Any]] = []
 
     if is_etsy_ads_signal(transcript_text):
-        parent_wedge = build_etsy_ads_parent_wedge(video_id, transcript_text)
-        pains = expand_etsy_ads_subwedges(parent_wedge, transcript_text)
+        transcript_chunks = transcript_payload.get("chunks") or []
+        parent_wedge = build_etsy_ads_parent_wedge(video_id, transcript_text, transcript_chunks)
+        pains = expand_etsy_ads_subwedges(parent_wedge, transcript_text, transcript_chunks)
         write_wedge_expansion_outputs(video_id, parent_wedge, pains)
 
     if not pains:
@@ -1106,7 +1431,7 @@ async def agent_solution_miner(pain_data: list[dict[str, Any]], out_dir: Path) -
                 "asset_type": str(artifact_stack[0]).title() if artifact_stack else "Bundle",
                 "validation_queries": validation_queries,
                 "differentiation_angle": differentiation_angle,
-                "source_quote": quote,
+                "source_quote": trim_evidence_quote_text(quote, max_chars=QUOTE_MAX_CHARS, max_words=QUOTE_MAX_WORDS),
                 "primary_channel": primary_channel,
                 "secondary_channel": secondary_channel,
                 "bundle_power": bundle_power,
@@ -1250,7 +1575,7 @@ def build_idea_candidates(solutions: list[dict[str, Any]], retry_index: int, *, 
                 "artifact_stack": artifact_stack,
                 "artifact_candidates": artifact_stack,
                 "differentiation_angle": solution.get("differentiation_angle"),
-                "source_quote": solution.get("source_quote"),
+                "source_quote": trim_evidence_quote_text(solution.get("source_quote", ""), max_chars=QUOTE_MAX_CHARS, max_words=QUOTE_MAX_WORDS),
                 "niche_query": clean_validation_query(
                     validation_queries[min(offset, max(0, len(validation_queries) - 1))] if validation_queries else f"{buyer} {wedge} {fmt}",
                     preserve_brand_terms=True,
@@ -1502,6 +1827,136 @@ def build_excalidraw_payload(video_id: str, pains: list[dict[str, Any]], validat
     }
 
 
+def build_factory_tasks(artifact_stack: list[str], primary_channel: str | None, secondary_channel: str | None) -> list[str]:
+    tasks: list[str] = []
+    normalized = [normalize_space(str(item)).lower() for item in artifact_stack if normalize_space(str(item))]
+    task_map = {
+        "dashboard": "build spreadsheet dashboard asset",
+        "calculator": "build calculator asset",
+        "testing sheet": "build testing worksheet",
+        "checklist": "build checklist asset",
+        "mini-course": "draft mini-course outline",
+        "bundle": "assemble bundle packaging",
+        "decision dashboard": "build decision dashboard asset",
+        "playbook": "draft playbook document",
+        "prompt library": "compile prompt library",
+        "workspace": "build workspace / Notion template",
+        "workbook": "draft workbook asset",
+    }
+    for item in normalized:
+        mapped = task_map.get(item)
+        if mapped and mapped not in tasks:
+            tasks.append(mapped)
+    if primary_channel:
+        tasks.append(f"prepare {primary_channel} listing assets")
+    if secondary_channel:
+        tasks.append(f"prepare {secondary_channel} companion offer")
+    tasks.append("generate pricing and launch copy")
+    return tasks[:8]
+
+
+def build_digital_bundle_specs(video_id: str, validated_items: list[dict[str, Any]]) -> dict[str, Any]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for item in validated_items:
+        group_key = normalize_space(item.get("sub_wedge_id") or item.get("wedge") or item.get("title") or "")
+        if not group_key:
+            continue
+        grouped.setdefault(group_key, []).append(item)
+
+    bundle_specs: list[dict[str, Any]] = []
+    for group_key, items in grouped.items():
+        ranked = sorted(
+            items,
+            key=lambda item: (
+                -safe_float(item.get("fms_score"), 0.0),
+                -safe_float(item.get("bundle_power"), 0.0),
+                safe_int(item.get("priority"), 99),
+                item.get("title", ""),
+            ),
+        )
+        top = ranked[0]
+        artifact_stack = [str(x) for x in (top.get("artifact_stack") or []) if normalize_space(str(x))]
+        sku_ladder: list[dict[str, Any]] = []
+        seen_titles: set[str] = set()
+        for item in ranked[:6]:
+            title = normalize_space(item.get("title", ""))
+            if not title or title.lower() in seen_titles:
+                continue
+            seen_titles.add(title.lower())
+            sku_ladder.append(
+                {
+                    "title": title,
+                    "format": item.get("format"),
+                    "price": item.get("price"),
+                    "fms_score": item.get("fms_score"),
+                    "revenue_potential": item.get("revenue_potential"),
+                }
+            )
+        price_ladder = sorted(
+            {
+                safe_int(item.get("price"), 0)
+                for item in ranked
+                if safe_int(item.get("price"), 0) > 0
+            }
+        )
+        offer_formats = []
+        for item in ranked:
+            fmt = normalize_space(item.get("format", ""))
+            if fmt and fmt not in offer_formats:
+                offer_formats.append(fmt)
+        bundle_specs.append(
+            {
+                "video_id": video_id,
+                "sub_wedge_id": top.get("sub_wedge_id") or group_key,
+                "parent_wedge_id": top.get("parent_wedge_id"),
+                "domain": top.get("domain"),
+                "buyer": top.get("buyer"),
+                "pain": top.get("pain"),
+                "outcome": top.get("outcome") or top.get("desire"),
+                "promise": top.get("outcome") or top.get("desire"),
+                "wedge": top.get("wedge"),
+                "artifact_stack": artifact_stack,
+                "offer_formats": offer_formats[:6],
+                "sku_ladder": sku_ladder,
+                "price_ladder": price_ladder,
+                "primary_channel": top.get("primary_channel"),
+                "secondary_channel": top.get("secondary_channel"),
+                "factory_tasks": build_factory_tasks(artifact_stack, top.get("primary_channel"), top.get("secondary_channel")),
+                "launch_assets": {
+                    "hero_title": top.get("title"),
+                    "etsy_keyword": top.get("etsy_keyword"),
+                    "listing_angles": [
+                        top.get("pain"),
+                        top.get("desire"),
+                        top.get("differentiation_angle"),
+                    ],
+                },
+                "bundle_power": top.get("bundle_power"),
+                "top_fms_score": max([safe_float(item.get("fms_score"), 0.0) for item in ranked] or [0.0]),
+                "evidence": {
+                    "source_quote": trim_evidence_quote_text(top.get("source_quote", ""), max_chars=QUOTE_MAX_CHARS, max_words=QUOTE_MAX_WORDS),
+                    "source_type": top.get("source_type"),
+                    "evidence_confidence": top.get("evidence_confidence"),
+                    "claim_verification_status": top.get("claim_verification_status"),
+                },
+            }
+        )
+
+    bundle_specs.sort(
+        key=lambda item: (
+            -safe_float(item.get("top_fms_score"), 0.0),
+            -safe_float(item.get("bundle_power"), 0.0),
+            item.get("wedge", ""),
+        )
+    )
+    return {
+        "generated_at": utc_now_iso(),
+        "video_id": video_id,
+        "bundle_spec_count": len(bundle_specs),
+        "bundle_specs": bundle_specs,
+    }
+
+
 def build_templated_handoff(video_id: str, validated_items: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "video_id": video_id,
@@ -1551,6 +2006,7 @@ async def agent_packager(video_url: str, transcript_payload: dict[str, Any], seg
     write_text(out_dir / "ready_to_sell.md", "# Ready to Sell\n\n1. Review top 3 validated ideas.\n2. Pick one Etsy listing JSON.\n3. Render slides in Templated.\n4. Publish to Etsy/Gumroad.\n")
     write_json(out_dir / "product_ideas.json", validated_items)
     write_json(out_dir / "validated_ideas.json", validated_payload)
+    write_json(out_dir / "digital_bundle_spec.json", build_digital_bundle_specs(transcript_payload.get("video_id", "unknown"), validated_items))
     write_json(excalidraw_dir / "pain_map.excalidraw", build_excalidraw_payload(transcript_payload.get("video_id", "unknown"), pains, validated_items))
     write_json(out_dir / "notion_template.json", {"type": "notion_dashboard", "video_id": transcript_payload.get("video_id"), "items": validated_items[:10]})
     write_json(out_dir / "templated_handoff.json", build_templated_handoff(transcript_payload.get("video_id", "unknown"), validated_items))
@@ -1606,6 +2062,8 @@ async def run_youtube_intelligence(
         log_step(f"[strategist] video={video_id} attempt={attempt} wedge_mode={wedge_mode}")
         ideas = await agent_product_strategist(solutions, out_dir, retry_index=attempt, wedge_mode=wedge_mode)
         validated_payload = await agent_validator(ideas, video_id, out_dir)
+        validated_items = validated_payload.get("items") or []
+        write_json(out_dir / "digital_bundle_spec.json", build_digital_bundle_specs(video_id, validated_items))
         passed, gate_report = quality_gate(ideas, validated_payload)
         write_json(out_dir / "quality_gate.json", {"attempt": attempt, "passed": passed, **gate_report, "wedge_mode": wedge_mode})
         log_step(f"[quality_gate] video={video_id} passed={passed} ideas={gate_report.get('idea_count')} top_fms={gate_report.get('top_fms_score')}")

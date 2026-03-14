@@ -1,0 +1,357 @@
+{
+  "generated_at": "2026-03-14T08:14:38Z",
+  "video_id": "AC1zd_TTVf0",
+  "bundle_spec_count": 4,
+  "bundle_specs": [
+    {
+      "video_id": "AC1zd_TTVf0",
+      "sub_wedge_id": "etsy ads testing tracker",
+      "parent_wedge_id": null,
+      "domain": null,
+      "buyer": "Etsy shop owner testing creatives",
+      "pain": "unclear listing-level ad decisions",
+      "outcome": "repeatable ad optimization decisions",
+      "promise": "repeatable ad optimization decisions",
+      "wedge": "etsy ads testing tracker",
+      "artifact_stack": [
+        "testing sheet",
+        "dashboard",
+        "playbook",
+        "bundle"
+      ],
+      "offer_formats": [
+        "Checklist Kit",
+        "Bundle",
+        "KPI Dashboard",
+        "Mini Course"
+      ],
+      "sku_ladder": [
+        {
+          "title": "Etsy Ads Testing Tracker Checklist Kit",
+          "format": "Checklist Kit",
+          "price": 35,
+          "fms_score": 68.5,
+          "revenue_potential": "$1332+/mo"
+        },
+        {
+          "title": "Etsy Ads Testing Tracker Bundle",
+          "format": "Bundle",
+          "price": 69,
+          "fms_score": 46.5,
+          "revenue_potential": "$1782+/mo"
+        },
+        {
+          "title": "Etsy Ads Testing Tracker KPI Dashboard",
+          "format": "KPI Dashboard",
+          "price": 59,
+          "fms_score": 46.5,
+          "revenue_potential": "$1524+/mo"
+        },
+        {
+          "title": "Etsy Ads Testing Tracker Mini Course",
+          "format": "Mini Course",
+          "price": 79,
+          "fms_score": 46.5,
+          "revenue_potential": "$2041+/mo"
+        }
+      ],
+      "price_ladder": [
+        35,
+        59,
+        69,
+        79
+      ],
+      "primary_channel": "etsy",
+      "secondary_channel": "gumroad",
+      "factory_tasks": [
+        "build testing worksheet",
+        "build spreadsheet dashboard asset",
+        "draft playbook document",
+        "assemble bundle packaging",
+        "prepare etsy listing assets",
+        "prepare gumroad companion offer",
+        "generate pricing and launch copy"
+      ],
+      "launch_assets": {
+        "hero_title": "Etsy Ads Testing Tracker Checklist Kit",
+        "etsy_keyword": "etsy ads testing template",
+        "listing_angles": [
+          "unclear listing-level ad decisions",
+          "repeatable ad optimization decisions",
+          "Transcript-derived Etsy Ads signal normalized into profitability and testing bundles instead of generic Etsy ops."
+        ]
+      },
+      "bundle_power": 9.3,
+      "top_fms_score": 68.5,
+      "evidence": {
+        "source_quote": "sporadically turning things on and off",
+        "source_type": "sub_wedge_from_transcript",
+        "evidence_confidence": "medium",
+        "claim_verification_status": "unverified"
+      }
+    },
+    {
+      "video_id": "AC1zd_TTVf0",
+      "sub_wedge_id": "etsy ads profitability system",
+      "parent_wedge_id": null,
+      "domain": null,
+      "buyer": "Etsy seller running ads",
+      "pain": "unclear ad profitability and scaling decisions",
+      "outcome": "profitable Etsy ads scaling",
+      "promise": "profitable Etsy ads scaling",
+      "wedge": "etsy ads profitability system",
+      "artifact_stack": [
+        "dashboard",
+        "calculator",
+        "testing sheet",
+        "mini-course",
+        "bundle"
+      ],
+      "offer_formats": [
+        "Mini Course",
+        "KPI Dashboard",
+        "Calculator",
+        "Checklist Kit"
+      ],
+      "sku_ladder": [
+        {
+          "title": "Etsy Ads Profitability System Mini Course",
+          "format": "Mini Course",
+          "price": 79,
+          "fms_score": 54.75,
+          "revenue_potential": "$2403+/mo"
+        },
+        {
+          "title": "Etsy Ads Profitability System KPI Dashboard",
+          "format": "KPI Dashboard",
+          "price": 59,
+          "fms_score": 47.5,
+          "revenue_potential": "$1557+/mo"
+        },
+        {
+          "title": "Etsy Ads Profitability System Calculator",
+          "format": "Calculator",
+          "price": 45,
+          "fms_score": 46.5,
+          "revenue_potential": "$1162+/mo"
+        },
+        {
+          "title": "Etsy Ads Profitability System Checklist Kit",
+          "format": "Checklist Kit",
+          "price": 35,
+          "fms_score": 46.5,
+          "revenue_potential": "$904+/mo"
+        }
+      ],
+      "price_ladder": [
+        35,
+        45,
+        59,
+        79
+      ],
+      "primary_channel": "etsy",
+      "secondary_channel": "gumroad",
+      "factory_tasks": [
+        "build spreadsheet dashboard asset",
+        "build calculator asset",
+        "build testing worksheet",
+        "draft mini-course outline",
+        "assemble bundle packaging",
+        "prepare etsy listing assets",
+        "prepare gumroad companion offer",
+        "generate pricing and launch copy"
+      ],
+      "launch_assets": {
+        "hero_title": "Etsy Ads Profitability System Mini Course",
+        "etsy_keyword": "etsy ads reporting template",
+        "listing_angles": [
+          "unclear ad profitability and scaling decisions",
+          "profitable Etsy ads scaling",
+          "Transcript-derived Etsy Ads signal normalized into profitability and testing bundles instead of generic Etsy ops."
+        ]
+      },
+      "bundle_power": 9.8,
+      "top_fms_score": 54.75,
+      "evidence": {
+        "source_quote": "Understanding the Etsy Ads",
+        "source_type": "sub_wedge_from_transcript",
+        "evidence_confidence": "medium",
+        "claim_verification_status": "unverified"
+      }
+    },
+    {
+      "video_id": "AC1zd_TTVf0",
+      "sub_wedge_id": "etsy ads margin guardrail toolkit",
+      "parent_wedge_id": null,
+      "domain": null,
+      "buyer": "Etsy seller running ads",
+      "pain": "unclear margin guardrails before ads",
+      "outcome": "safe paid acquisition budgeting",
+      "promise": "safe paid acquisition budgeting",
+      "wedge": "etsy ads margin guardrail toolkit",
+      "artifact_stack": [
+        "calculator",
+        "dashboard",
+        "checklist",
+        "bundle"
+      ],
+      "offer_formats": [
+        "KPI Dashboard",
+        "Bundle",
+        "Calculator",
+        "Checklist Kit"
+      ],
+      "sku_ladder": [
+        {
+          "title": "Etsy Ads Margin Guardrail Toolkit KPI Dashboard",
+          "format": "KPI Dashboard",
+          "price": 59,
+          "fms_score": 51.88,
+          "revenue_potential": "$1701+/mo"
+        },
+        {
+          "title": "Etsy Ads Margin Guardrail Toolkit Bundle",
+          "format": "Bundle",
+          "price": 69,
+          "fms_score": 46.5,
+          "revenue_potential": "$1782+/mo"
+        },
+        {
+          "title": "Etsy Ads Margin Guardrail Toolkit Calculator",
+          "format": "Calculator",
+          "price": 45,
+          "fms_score": 46.5,
+          "revenue_potential": "$1162+/mo"
+        },
+        {
+          "title": "Etsy Ads Margin Guardrail Toolkit Checklist Kit",
+          "format": "Checklist Kit",
+          "price": 35,
+          "fms_score": 46.5,
+          "revenue_potential": "$904+/mo"
+        }
+      ],
+      "price_ladder": [
+        35,
+        45,
+        59,
+        69
+      ],
+      "primary_channel": "etsy",
+      "secondary_channel": "gumroad",
+      "factory_tasks": [
+        "build calculator asset",
+        "build spreadsheet dashboard asset",
+        "build checklist asset",
+        "assemble bundle packaging",
+        "prepare etsy listing assets",
+        "prepare gumroad companion offer",
+        "generate pricing and launch copy"
+      ],
+      "launch_assets": {
+        "hero_title": "Etsy Ads Margin Guardrail Toolkit KPI Dashboard",
+        "etsy_keyword": "etsy profit tracker spreadsheet",
+        "listing_angles": [
+          "unclear margin guardrails before ads",
+          "safe paid acquisition budgeting",
+          "Transcript-derived Etsy Ads signal normalized into profitability and testing bundles instead of generic Etsy ops."
+        ]
+      },
+      "bundle_power": 9.3,
+      "top_fms_score": 51.88,
+      "evidence": {
+        "source_quote": "revenue less refunds less discounts less",
+        "source_type": "sub_wedge_from_transcript",
+        "evidence_confidence": "medium",
+        "claim_verification_status": "unverified"
+      }
+    },
+    {
+      "video_id": "AC1zd_TTVf0",
+      "sub_wedge_id": "etsy break-even roas calculator",
+      "parent_wedge_id": null,
+      "domain": null,
+      "buyer": "Etsy seller running ads",
+      "pain": "unclear break-even ROAS targets",
+      "outcome": "clear listing-level profitability thresholds",
+      "promise": "clear listing-level profitability thresholds",
+      "wedge": "etsy break-even roas calculator",
+      "artifact_stack": [
+        "calculator",
+        "dashboard",
+        "checklist",
+        "bundle"
+      ],
+      "offer_formats": [
+        "KPI Dashboard",
+        "Bundle",
+        "Checklist Kit",
+        "Calculator"
+      ],
+      "sku_ladder": [
+        {
+          "title": "Etsy Break-Even Roas Calculator KPI Dashboard",
+          "format": "KPI Dashboard",
+          "price": 59,
+          "fms_score": 46.5,
+          "revenue_potential": "$1524+/mo"
+        },
+        {
+          "title": "Etsy Break-Even Roas Calculator Bundle",
+          "format": "Bundle",
+          "price": 69,
+          "fms_score": 45.0,
+          "revenue_potential": "$1725+/mo"
+        },
+        {
+          "title": "Etsy Break-Even Roas Calculator Checklist Kit",
+          "format": "Checklist Kit",
+          "price": 35,
+          "fms_score": 45.0,
+          "revenue_potential": "$875+/mo"
+        },
+        {
+          "title": "Etsy Break-Even Roas Calculator Calculator",
+          "format": "Calculator",
+          "price": 45,
+          "fms_score": 25.5,
+          "revenue_potential": "$638+/mo"
+        }
+      ],
+      "price_ladder": [
+        35,
+        45,
+        59,
+        69
+      ],
+      "primary_channel": "etsy",
+      "secondary_channel": "gumroad",
+      "factory_tasks": [
+        "build calculator asset",
+        "build spreadsheet dashboard asset",
+        "build checklist asset",
+        "assemble bundle packaging",
+        "prepare etsy listing assets",
+        "prepare gumroad companion offer",
+        "generate pricing and launch copy"
+      ],
+      "launch_assets": {
+        "hero_title": "Etsy Break-Even Roas Calculator KPI Dashboard",
+        "etsy_keyword": "etsy roas spreadsheet",
+        "listing_angles": [
+          "unclear break-even ROAS targets",
+          "clear listing-level profitability thresholds",
+          "Transcript-derived Etsy Ads signal normalized into profitability and testing bundles instead of generic Etsy ops."
+        ]
+      },
+      "bundle_power": 9.3,
+      "top_fms_score": 46.5,
+      "evidence": {
+        "source_quote": "ET PC the second tip is learning how to 2 Break-Even ROAS",
+        "source_type": "sub_wedge_from_transcript",
+        "evidence_confidence": "medium",
+        "claim_verification_status": "unverified"
+      }
+    }
+  ]
+}

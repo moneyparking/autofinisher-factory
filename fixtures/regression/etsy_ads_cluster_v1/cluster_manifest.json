@@ -1,0 +1,47 @@
+{
+  "cluster_name": "etsy_ads_cluster_v1",
+  "fixture_version": "v1",
+  "video_count": 10,
+  "control_video_count": 2,
+  "video_ids": [
+    "ztcfOv8uv6U",
+    "WNQgc8NzLYc",
+    "xLmnJYWHQ34",
+    "D107mfmR27M",
+    "5vXGrgql6Jg",
+    "SeULgy3Dgi0",
+    "0Xrx-OXQmd4",
+    "9-us_15_Z9I",
+    "8Jtp2WDrU3M",
+    "p5j8pYbeUJs"
+  ],
+  "control_video_ids": [
+    "AC1zd_TTVf0",
+    "sUuA2_k9g18"
+  ],
+  "cluster_contract": {
+    "expected_pass_count_exact": 10,
+    "allowed_fail_count_exact": 0,
+    "min_idea_count_across_cluster": 10,
+    "min_top_fms_across_cluster": 68.5,
+    "min_top_bundle_power_across_cluster": 9.0,
+    "min_distinct_sub_wedges_across_cluster": 3,
+    "digital_bundle_spec_required_for_all": true,
+    "domains_only": [
+      "etsy_ads"
+    ]
+  },
+  "cluster_v1_floor": {
+    "min_idea_count_across_cluster": 10,
+    "min_top_fms_across_cluster": 54.75,
+    "min_top_bundle_power_across_cluster": 9.0,
+    "min_distinct_sub_wedges_across_cluster": 2
+  },
+  "baseline_observed": {
+    "target_pass_count": 6,
+    "min_idea_count": 10,
+    "min_top_fms_score": 55.12,
+    "min_top_bundle_power": 9.8,
+    "min_distinct_sub_wedges": 2
+  }
+}
