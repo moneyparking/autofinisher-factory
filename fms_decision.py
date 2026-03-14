@@ -186,12 +186,17 @@ def _market_reason_code(
     str_value: float,
     digital_share: float | None,
     total_results: Any,
+    sales_count_top_max: int,
+    channel_validation_profile: dict[str, Any] | None,
     min_monetization_score: float,
     min_str_for_accept: float,
     min_sold_for_accept: int,
     min_active: int,
     max_active: int,
 ) -> tuple[str, str, str]:
+    profile = channel_validation_profile or {}
+    ebay_signal_policy = str(profile.get("ebay_signal_policy") or "normal")
+    etsy_strong = (digital_share is not None and float(digital_share) >= 0.8 and int(sales_count_top_max or 0) >= 50)
     if digital_share is not None and float(digital_share) < 0.4:
         return "rejected", "market_reject", "market_reject_weak_etsy"
     if total_results is not None:
@@ -203,6 +208,11 @@ def _market_reason_code(
                 return "rejected", "market_reject", "market_reject_weak_etsy"
         except Exception:
             pass
+    if score < min_monetization_score:
+        return "rejected", "market_reject", "market_reject_low_fms"
+    if ebay_signal_policy == "soft_signal" and etsy_strong:
+        if active < min_active or sold < min_sold_for_accept or str_value < min_str_for_accept:
+            return "candidate", "market_candidate", "market_candidate_soft_ebay_profile"
     if active < min_active:
         return "rejected", "market_reject", "market_reject_low_active"
     if active > max_active:
@@ -211,8 +221,6 @@ def _market_reason_code(
         return "rejected", "market_reject", "market_reject_low_sold"
     if str_value < min_str_for_accept:
         return "rejected", "market_reject", "market_reject_low_str"
-    if score < min_monetization_score:
-        return "rejected", "market_reject", "market_reject_low_fms"
     return "winner", "market_accept", "market_accept_winner_gate"
 
 
@@ -239,6 +247,8 @@ def decide_for_item(
     digital_share_raw = aggregates.get("digital_share", search_metadata.get("digital_share"))
     digital_share = float(digital_share_raw) if digital_share_raw is not None else None
     total_results = search_metadata.get("total_results")
+    sales_count_top_max = int(aggregates.get("sales_count_top_max") or 0)
+    channel_validation_profile = item.get("channel_validation_profile") or {}
 
     source_quality = item.get("source_quality") or {}
     data_quality = item.get("data_quality") or aggregate_data_quality(source_quality)
@@ -286,6 +296,8 @@ def decide_for_item(
         str_value=str_value,
         digital_share=digital_share,
         total_results=total_results,
+        sales_count_top_max=sales_count_top_max,
+        channel_validation_profile=channel_validation_profile,
         min_monetization_score=min_monetization_score,
         min_str_for_accept=min_str_for_accept,
         min_sold_for_accept=min_sold_for_accept,

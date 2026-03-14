@@ -118,35 +118,87 @@ def get_google_suggests(seed_keyword: str) -> list[str]:
 EBAY_QUERY_MAX_TOKENS = int(os.getenv("EBAY_QUERY_MAX_TOKENS", "6"))
 EBAY_QUERY_MIN_TOKENS = int(os.getenv("EBAY_QUERY_MIN_TOKENS", "4"))
 
+MARKETPLACE_SPECIFIC_TOKENS = {
+    "etsy",
+    "ebay",
+    "amazon",
+    "shopify",
+    "gumroad",
+    "pinterest",
+    "tiktok",
+    "youtube",
+    "google",
+    "woocommerce",
+    "wordpress",
+}
+
+UTILITY_INTENT_TOKENS = {
+    "sheet",
+    "sheets",
+    "spreadsheet",
+    "tracker",
+    "dashboard",
+    "calculator",
+    "template",
+    "templates",
+    "checklist",
+    "system",
+    "tool",
+    "tools",
+    "planner",
+    "sop",
+}
+
+
+def tokenize_query(text: str) -> list[str]:
+    cleaned = re.sub(r"[^\w\s]", " ", re.sub(r"\s+", " ", str(text or "").strip()), flags=re.UNICODE)
+    return [t for t in cleaned.lower().split() if t]
+
+
+
+def is_marketplace_utility_query(text: str) -> bool:
+    tokens = tokenize_query(text)
+    return any(tok in MARKETPLACE_SPECIFIC_TOKENS for tok in tokens) and any(tok in UTILITY_INTENT_TOKENS for tok in tokens)
+
 
 def normalize_ebay_query(text: str) -> str:
-    """Normalize raw niche text into a stable eBay query.
+    """Normalize a raw niche into an eBay query without over-broadening.
 
-    Goals:
-    - remove obvious platform words (etsy/ebay/google sheets, etc.)
-    - strip year tokens and noisy numbers ("2026 2027", "75 day")
-    - keep 4–6 meaningful tokens (configurable)
+    The old implementation aggressively removed platform/tool words such as
+    "etsy" and "spreadsheet". For seller/B2B utility phrases like
+    "etsy ads tracker spreadsheet" this collapsed the query into a broad term
+    such as "ads tracker", which created false-positive liquidity signals.
 
-    This reduces false parse matches where the heading includes the query/title.
+    New policy:
+    - always strip obvious date/noise tokens
+    - keep platform-specific + utility phrases intact for exact/buyer-language probes
+    - if normalization would drop too much meaning, fall back to the conservative
+      original token sequence instead of broadening the query
     """
     raw = re.sub(r"\s+", " ", str(text or "").strip())
     if not raw:
         return ""
 
-    # Drop punctuation that creates token splits.
     cleaned = re.sub(r"[^\w\s]", " ", raw, flags=re.UNICODE)
     tokens = [t for t in cleaned.lower().split() if t]
 
+    def is_noise_token(tok: str) -> bool:
+        if tok.isdigit():
+            n = int(tok)
+            if 1900 <= n <= 2100:
+                return True
+            if n <= 366:
+                return True
+            return True
+        if re.fullmatch(r"20\d{2}", tok):
+            return True
+        return False
+
+    noise_stripped = [tok for tok in tokens if not is_noise_token(tok)]
+    if not noise_stripped:
+        return ""
+
     drop_words = {
-        "etsy",
-        "ebay",
-        "amazon",
-        "shopify",
-        "gumroad",
-        "pinterest",
-        "tiktok",
-        "youtube",
-        "google",
         "goodnotes",
         "notability",
         "ipad",
@@ -154,41 +206,33 @@ def normalize_ebay_query(text: str) -> str:
         "svg",
         "canva",
         "notion",
-        "sheet",
-        "sheets",
-        "spreadsheet",
-        "template",
         "printable",
         "digital",
         "download",
         "bundle",
     }
 
-    filtered: list[str] = []
-    for tok in tokens:
-        if tok in drop_words:
-            continue
-        # strip pure years / dates / day counts
-        if tok.isdigit():
-            n = int(tok)
-            if 1900 <= n <= 2100:
-                continue
-            if n <= 366:
-                continue
-            continue
-        # drop year-ish tokens like 2026-2027
-        if re.fullmatch(r"20\d{2}", tok):
-            continue
-        filtered.append(tok)
-
+    filtered = [tok for tok in noise_stripped if tok not in drop_words]
     if not filtered:
-        # fallback to raw tokens w/out platform words (preserve at least something)
-        filtered = [t for t in tokens if t not in drop_words]
+        filtered = noise_stripped[:]
 
     max_toks = max(1, EBAY_QUERY_MAX_TOKENS)
     min_toks = max(1, EBAY_QUERY_MIN_TOKENS)
 
+    has_marketplace_marker = any(tok in MARKETPLACE_SPECIFIC_TOKENS for tok in noise_stripped)
+    has_utility_marker = any(tok in UTILITY_INTENT_TOKENS for tok in noise_stripped)
+
+    # For seller/B2B utility phrases, keep the literal buyer-language query.
+    if has_marketplace_marker and has_utility_marker:
+        return " ".join(noise_stripped[:max_toks]).strip()
+
     out = filtered[:max_toks]
+
+    # Guardrail: if normalization removed too much signal, do not broaden.
+    min_semantic_tokens = min(max_toks, max(3, min_toks))
+    if len(out) < min_semantic_tokens and len(noise_stripped) >= min_semantic_tokens:
+        return " ".join(noise_stripped[:max_toks]).strip()
+
     if len(out) < min_toks and len(filtered) > len(out):
         out = filtered[:min_toks]
 
@@ -309,18 +353,23 @@ def extract_count_from_ebay(html: str) -> int:
 
 
 def get_ebay_metrics(keyword: str) -> dict:
-    normalized_query = normalize_ebay_query(keyword)
-    query_for_urls = normalized_query or keyword
+    raw_keyword = re.sub(r"\s+", " ", str(keyword or "").strip())
+    normalized_query = normalize_ebay_query(raw_keyword)
+    query_for_urls = normalized_query or raw_keyword
     active_url = build_ebay_search_url(query_for_urls, sold=False)
     sold_url = build_ebay_search_url(query_for_urls, sold=True)
 
     metrics = {
+        "raw_keyword": raw_keyword,
+        "normalized_query": query_for_urls,
         "active": 0,
         "sold": 0,
         "active_url": active_url,
         "sold_url": sold_url,
         "active_parser_error": False,
         "sold_parser_error": False,
+        "ebay_query_mode": "normalized_or_raw",
+        "diagnostic_flags": [],
     }
 
     try:
@@ -336,6 +385,51 @@ def get_ebay_metrics(keyword: str) -> dict:
         metrics["sold_parser_error"] = "parser error" in sold_html.lower()
     except Exception as e:
         print(f"[!] Ошибка запроса sold eBay для '{keyword}': {e}")
+
+    # Exact-query sanity guard for marketplace-specific seller-tool phrases.
+    # If normalization broadens the query and invents liquidity that does not exist
+    # on the exact phrase, prefer the exact phrase result and mark the metrics as sanitized.
+    if raw_keyword and query_for_urls and raw_keyword.lower() != query_for_urls.lower() and is_marketplace_utility_query(raw_keyword):
+        exact_active_url = build_ebay_search_url(raw_keyword, sold=False)
+        exact_sold_url = build_ebay_search_url(raw_keyword, sold=True)
+        exact_active = 0
+        exact_sold = 0
+        exact_active_parser_error = False
+        exact_sold_parser_error = False
+        try:
+            exact_active_html = fetch_ebay_html(exact_active_url)
+            exact_active = extract_count_from_ebay(exact_active_html)
+            exact_active_parser_error = "parser error" in exact_active_html.lower()
+        except Exception as e:
+            metrics["diagnostic_flags"].append(f"exact_active_probe_failed:{e}")
+        try:
+            exact_sold_html = fetch_ebay_html(exact_sold_url)
+            exact_sold = extract_count_from_ebay(exact_sold_html)
+            exact_sold_parser_error = "parser error" in exact_sold_html.lower()
+        except Exception as e:
+            metrics["diagnostic_flags"].append(f"exact_sold_probe_failed:{e}")
+
+        metrics["exact_query_probe"] = {
+            "query": raw_keyword,
+            "active": exact_active,
+            "sold": exact_sold,
+            "active_url": exact_active_url,
+            "sold_url": exact_sold_url,
+            "active_parser_error": exact_active_parser_error,
+            "sold_parser_error": exact_sold_parser_error,
+        }
+
+        if exact_active <= 0 and metrics["active"] > 0:
+            metrics["active"] = exact_active
+            metrics["sold"] = exact_sold
+            metrics["active_url"] = exact_active_url
+            metrics["sold_url"] = exact_sold_url
+            metrics["active_parser_error"] = exact_active_parser_error
+            metrics["sold_parser_error"] = exact_sold_parser_error
+            metrics["ebay_query_mode"] = "exact_sanity_override"
+            metrics["diagnostic_flags"].append("exact_zero_overrode_broadened_query")
+        else:
+            metrics["ebay_query_mode"] = "normalized_with_exact_probe"
 
     return metrics
 

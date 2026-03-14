@@ -7,15 +7,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from buildability_profiles import compute_opportunity_score, infer_buildability_profile
 from competitor_intel import competitor_profile
 from etsy_mcp_scraper import inspect_listing, scan_keywords as etsy_scan_keywords
 from google_niche_scraper import scan_google_niches
 from monetization_scorer import ranking_payload
 from performance_intel import performance_feedback_score
 from review_intel import review_intelligence
-from niche_profit_engine import get_ebay_metrics, normalize_ebay_query
+from niche_profit_engine import get_ebay_metrics
 from fms_decision import aggregate_data_quality, decide_for_item, infer_source_quality
 from fms_engine import compute_fms_components, compute_fms_score
+from market_sync_profiles import (
+    compute_overall_fms_sync,
+    derive_youtube_hypothesis_intel,
+    infer_channel_validation_profile,
+)
 from winner_duplicator import process_niche
 
 BASE_DIR = Path("/home/agent/autofinisher-factory")
@@ -542,7 +548,7 @@ def collect_candidates() -> tuple[list[dict[str, Any]], dict[str, Any]]:
 
                 try:
                     batch_stats["ebay_requests_used"] += 1
-                    metrics, ebay_quality = ebay_metrics_with_retry(normalize_ebay_query(niche) or niche)
+                    metrics, ebay_quality = ebay_metrics_with_retry(niche)
                     batch_stats["ebay_successes"] += 1
                 except Exception as exc:
                     print(f"[monetization_pipeline_fast] eBay validation failed for '{niche}': {exc}")
@@ -608,7 +614,18 @@ def collect_candidates() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                     "google_candidate_count": len(google_candidates),
                     "source_quality": source_quality,
                     "data_quality": aggregate_data_quality(source_quality),
-                    "intel": intel,
+                    "intel": {
+                        **intel,
+                        "ebay_probe": {
+                            "raw_keyword": metrics.get("raw_keyword"),
+                            "normalized_query": metrics.get("normalized_query"),
+                            "ebay_query_mode": metrics.get("ebay_query_mode"),
+                            "active_url": metrics.get("active_url"),
+                            "sold_url": metrics.get("sold_url"),
+                            "diagnostic_flags": metrics.get("diagnostic_flags") or [],
+                            "exact_query_probe": metrics.get("exact_query_probe"),
+                        },
+                    },
                     "metrics": {
                         "active_listings": active,
                         "sold_listings": sold,
@@ -628,9 +645,28 @@ def collect_candidates() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                     "str_percent": str_value,
                     "active_count": active,
                     "sold_count": sold,
+                    "raw_keyword": metrics.get("raw_keyword"),
+                    "normalized_query": metrics.get("normalized_query"),
+                    "ebay_query_mode": metrics.get("ebay_query_mode"),
                 }
                 item["fms_components"] = compute_fms_components(etsy_metrics=etsy_metrics, ebay_metrics=ebay_metrics, real_performance=item.get("real_performance") or {})
-                item["fms_score"] = compute_fms_score(item["fms_components"])
+                item["channel_validation_profile"] = infer_channel_validation_profile(item)
+                item["youtube_hypothesis_intel"] = derive_youtube_hypothesis_intel(item)
+                item["market_fms_score"] = compute_fms_score(item["fms_components"])
+                item["fms_sync"] = compute_overall_fms_sync(
+                    market_fms_score=item["market_fms_score"],
+                    channel_validation_profile=item["channel_validation_profile"],
+                    youtube_hypothesis_intel=item.get("youtube_hypothesis_intel"),
+                )
+                item["fms_score"] = float(item["fms_sync"]["overall_fms_score"])
+                item["buildability_profile"] = infer_buildability_profile(item)
+                item["buildability_score"] = float((item.get("buildability_profile") or {}).get("buildability_score") or 0.0)
+                item["opportunity_sync"] = compute_opportunity_score(
+                    overall_fms_score=item["fms_score"],
+                    buildability_score=item["buildability_score"],
+                    channel_validation_profile=item.get("channel_validation_profile"),
+                )
+                item["overall_opportunity_score"] = float((item.get("opportunity_sync") or {}).get("overall_opportunity_score") or item["fms_score"])
                 item["scraping_profile"] = "fast_v1"
 
                 decision_payload = decision_for_item(item)
@@ -657,6 +693,18 @@ def collect_candidates() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                     "sales_count_top_n": etsy_summary.get("sales_count_top_n"),
                     "data_quality": item.get("data_quality") or {},
                     "source_quality": item.get("source_quality") or {},
+                    "ebay_query_mode": metrics.get("ebay_query_mode"),
+                    "ebay_raw_keyword": metrics.get("raw_keyword"),
+                    "ebay_normalized_query": metrics.get("normalized_query"),
+                    "ebay_diagnostic_flags": metrics.get("diagnostic_flags") or [],
+                    "channel_validation_profile": (item.get("channel_validation_profile") or {}).get("profile_id"),
+                    "market_fms_score": item.get("market_fms_score"),
+                    "overall_fms_score": item.get("fms_score"),
+                    "youtube_hypothesis_score": (item.get("fms_sync") or {}).get("youtube_hypothesis_score"),
+                    "youtube_uplift": (item.get("fms_sync") or {}).get("youtube_uplift"),
+                    "buildability_profile": (item.get("buildability_profile") or {}).get("profile_id"),
+                    "buildability_score": item.get("buildability_score"),
+                    "overall_opportunity_score": item.get("overall_opportunity_score"),
                 })
                 validation_result = process_niche(item=item, batch_id=current_batch_id, scraping_profile="fast_v1", decision=decision, reason=reason)
                 item["validation"] = validation_result
@@ -678,7 +726,7 @@ def collect_candidates() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 seed_record["reason_detail"] = "winner_found_in_seed"
                 print(
                     f"[monetization_pipeline_fast] approved: {niche} | vertical={vertical_name} | "
-                    f"score={item['fms_score']} | STR={str_value}% | active={active} sold={sold}"
+                    f"score={item['fms_score']} | opp={item['overall_opportunity_score']} | STR={str_value}% | active={active} sold={sold}"
                 )
 
             seed_statuses.append(seed_record)
@@ -691,6 +739,7 @@ def collect_candidates() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     write_batch_progress(current_batch_id, batch_stats, processed_seeds=processed_seeds, total_seeds_planned=total_seeds_planned, batch_status="completed")
     approved.sort(
         key=lambda item: (
+            -float(item.get("overall_opportunity_score") or 0.0),
             -float(item.get("fms_score") or 0.0),
             -float(item["metrics"]["sell_through_rate"]),
             -float((item.get("ranking") or {}).get("etsy_fit") or 0.0),
