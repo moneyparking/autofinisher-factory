@@ -4,9 +4,9 @@
 
 Post-batch monitoring is an official pipeline step.
 
-It reads the current batch context from validated niche outputs and seed status artifacts, computes batch-level KPI for yield and reference-relative quality, stores rolling history, emits alerts, and exposes a compact monitoring block that is attached to `publish_packets/summary.json`.
+It reads the current batch context from seed status and validation artifacts, computes batch-level KPI for yield and quality, stores rolling history, emits alerts, and exposes a compact monitoring block inside `publish_packets/summary.json`.
 
-Agents should treat the files listed below as the source of truth for batch-level monitoring.
+Monitoring is now expected to track not only canonical winners, but also candidate quality and build-oriented batch behavior.
 
 ## Monitoring step
 
@@ -21,7 +21,8 @@ Primary inputs:
 Required runtime values:
 
 - `batch_id`
-- `seeds_total`
+- `processed_seeds`
+- `total_seeds`
 
 ### Outputs
 
@@ -39,11 +40,28 @@ The batch runner enriches `publish_packets/summary.json` with a compact `monitor
 
 ## KPI model
 
-### Batch KPI
+### Core batch KPI
 
-The monitoring step computes:
+The monitoring step may compute and/or expose:
 
-- `winner_yield = winners_total / seeds_total`
+- `winner_yield`
+- `winner_yield_raw`
+- `winner_yield_reliable`
+- `reliable_seed_count`
+- `winner_count`
+- `candidate_count`
+- `rejected_count`
+- `market_accept_total`
+- `market_candidate_total`
+- `market_reject_total`
+- `data_uncertain_total`
+- `network_retry_events_total`
+- `network_retry_seeds`
+
+### Reference-relative KPI
+
+Where reference comparison is available, the monitoring layer may also compute:
+
 - `avg_fms_ratio_winners`
 - `avg_str_ratio_winners`
 - `avg_sold_ratio_winners`
@@ -52,29 +70,47 @@ The monitoring step computes:
 - `avg_sold_ratio_candidates`
 - `median_fms_ratio_winners`
 
-### Reference-relative meaning
-
 `*_ratio_*` values are relative to the current reference winner defined in `fms_reference.py`.
 
-Example interpretation:
+### Current 2026 interpretation
 
-- `avg_fms_ratio_winners = 1.0` means winners match the current reference batch baseline.
-- `avg_sold_ratio_candidates = 0.03` means candidates are far weaker than the reference by sold-liquidity.
+Monitoring should now distinguish among:
+
+- **winners**
+- **buildable candidates**
+- **soft-profile / partial-market candidates**
+- **data-uncertain cases**
+
+This matters because the current repo supports experimental build flow from strong candidate clusters even when canonical winner count is zero.
+
+## Profile-aware monitoring
+
+Where profile fields are available in current outputs, monitoring should be able to segment by:
+
+- `profile_id`
+- `channel_validation_profile`
+- candidate vs winner vs soft-profile candidate families
+
+Useful profile-aware KPIs include:
+
+- count of niches with `overall_fms_score >= X` by profile
+- count of niches with `buildability_score >= Y` by profile
+- count of buildable candidates with no winner accept
 
 ## Alert model
 
 ### Static thresholds
 
-Current static thresholds:
+Examples of static thresholds still used by the current layer:
 
-- warning yield floor: `0.18`
-- critical yield floor: `0.10`
-- warning winner FMS ratio floor: `0.80`
-- critical winner FMS ratio floor: `0.60`
+- warning yield floor
+- critical yield floor
+- winner FMS ratio warning floor
+- winner FMS ratio critical floor
 
 ### Dynamic thresholds
 
-The monitoring layer keeps rolling history across the latest batches and computes dynamic warning/critical thresholds using rolling mean/std logic.
+The monitoring layer keeps rolling history across recent batches and computes dynamic warning/critical thresholds using rolling mean/std logic.
 
 Current implementation keeps history in:
 
@@ -89,18 +125,19 @@ Current implementation keeps history in:
 - current thresholds
 - alerts array with `level`, `code`, `message`
 
-Example alert codes:
+Examples of alert families in the current model:
 
-- `LOW_YIELD_GOOD_REFERENCE`
-- `LOW_YIELD_LOW_REFERENCE`
-- `NORMAL_YIELD_LOW_REFERENCE`
-- `CANDIDATES_SOLD_RATIO_WEAK`
+- low yield
+- low reference quality
+- weak candidate sold-ratio
+- batch drift vs reference
+- candidate-heavy / winner-light behavior
 
 ## Data contracts
 
 ### `reference_batch_summary.json`
 
-Top-level fields:
+Top-level fields commonly include:
 
 - `generated_at`
 - `batch_id`
@@ -110,7 +147,7 @@ Top-level fields:
 
 ### `reference_alerts.json`
 
-Top-level fields:
+Top-level fields commonly include:
 
 - `batch_id`
 - `generated_at`
@@ -120,7 +157,7 @@ Top-level fields:
 
 ### `batch_kpi_history.json`
 
-Top-level fields:
+Top-level fields commonly include:
 
 - `updated_at`
 - `window`
@@ -131,35 +168,41 @@ Each history item contains batch-level KPI aggregates for one batch.
 
 ## Link into publish summary
 
-`publish_packets/summary.json` is enriched with a compact block:
+`publish_packets/summary.json` is enriched with a compact block such as:
 
 - `monitoring.reference_summary_path`
 - `monitoring.reference_alerts_path`
+- `monitoring.batch_status`
+- `monitoring.processed_seeds`
+- `monitoring.total_seeds`
 - `monitoring.winner_yield`
-- `monitoring.avg_fms_ratio_winners`
-- `monitoring.avg_sold_ratio_winners`
+- `monitoring.winner_yield_raw`
+- `monitoring.winner_yield_reliable`
+- `monitoring.market_candidate_total`
+- `monitoring.market_accept_total`
+- `monitoring.market_reject_total`
+- `monitoring.data_uncertain_total`
 - `monitoring.alerts_count`
 - `monitoring.alerts_levels`
 
-This block is intentionally compact. Agents and dashboards should use it as the fast navigation layer and read the detailed monitoring artifacts when deeper analysis is needed.
+This block is intentionally compact. Agents and dashboards should use it as a fast navigation layer and read the detailed monitoring artifacts when deeper analysis is needed.
 
-## Current real batch example
+## Current practical rule
 
-Current validated example batch:
+A batch with:
 
-- `seeds_total = 2`
-- `winners_total = 1`
-- `candidates_total = 1`
-- `winner_yield = 0.5`
-- `avg_fms_ratio_winners = 1.0`
-- `avg_sold_ratio_winners = 1.0`
-- `avg_fms_ratio_candidates = 0.9104`
-- `avg_sold_ratio_candidates = 0.0328`
+- `0 winners`
+- high `candidate_count`
+- good cluster concentration
+- strong buildability/product-intel direction
 
-Observed alert:
+should not automatically be interpreted as a total failure.
 
-- `CANDIDATES_SOLD_RATIO_WEAK`
-- level: `critical`
+In the current repo, that pattern may instead indicate:
+
+- candidate cluster exists
+- packaging / offer shape is now the main blocker
+- build-first / live-validation can be the correct next step
 
 ## Operational notes for agents
 
@@ -169,3 +212,4 @@ When adding new KPI or alerts:
 2. keep field names stable across code, JSON, and specs
 3. expose only compact pointers/KPI in `publish_packets/summary.json`
 4. keep detailed alert logic in monitoring artifacts, not in the publish summary itself
+5. prefer profile-aware monitoring terminology when current outputs expose profile fields
