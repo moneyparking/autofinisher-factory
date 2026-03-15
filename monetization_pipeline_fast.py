@@ -23,6 +23,7 @@ from market_sync_profiles import (
     infer_channel_validation_profile,
 )
 from winner_duplicator import process_niche
+from keyword_engine.keyword_to_niche_candidates import import_keyword_run_to_verticals
 
 BASE_DIR = Path("/home/agent/autofinisher-factory")
 VERTICALS_PATH = Path(os.getenv("VERTICALS_PATH", str(BASE_DIR / "vertical_families.json")))
@@ -56,6 +57,8 @@ MAX_ETSY_INSPECT_PER_SEED = int(os.getenv("MAX_ETSY_INSPECT_PER_SEED", "0"))
 ETSY_INSPECT_TOP_N_SALES = int(os.getenv("ETSY_INSPECT_TOP_N_SALES", "0"))
 
 MAX_NETWORK_FAILURES_PER_SEED = int(os.getenv("MAX_NETWORK_FAILURES_PER_SEED", "2"))
+KEYWORD_DISCOVERY_ONLY = os.getenv("KEYWORD_DISCOVERY_ONLY", "").strip().lower() in {"1", "true", "yes", "on"}
+MAX_KEYWORD_DISCOVERY_SEED_WORDS = int(os.getenv("MAX_KEYWORD_DISCOVERY_SEED_WORDS", "6"))
 
 
 def now_iso() -> str:
@@ -66,11 +69,34 @@ def normalize(text: str) -> str:
     return " ".join(str(text or "").strip().lower().split())
 
 
+def word_count(text: str) -> int:
+    normalized = normalize(text)
+    if not normalized:
+        return 0
+    return len(normalized.split())
+
+
 def load_verticals() -> list[dict[str, Any]]:
-    if not VERTICALS_PATH.exists():
-        return []
-    payload = json.loads(VERTICALS_PATH.read_text(encoding="utf-8"))
-    return [x for x in payload.get("vertical_families", []) if isinstance(x, dict)]
+    verticals: list[dict[str, Any]] = []
+    if VERTICALS_PATH.exists():
+        payload = json.loads(VERTICALS_PATH.read_text(encoding="utf-8"))
+        verticals = [x for x in payload.get("vertical_families", []) if isinstance(x, dict)]
+
+    keyword_import_enabled = os.getenv("KEYWORD_DISCOVERY_IMPORT_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+    keyword_run_id = os.getenv("KEYWORD_DISCOVERY_RUN_ID", "").strip() or None
+    keyword_max_candidates = int(os.getenv("KEYWORD_DISCOVERY_MAX_CANDIDATES", "50"))
+    if keyword_import_enabled:
+        try:
+            synthetic_verticals = import_keyword_run_to_verticals(keyword_run_id, max_candidates=keyword_max_candidates)
+            if KEYWORD_DISCOVERY_ONLY:
+                return synthetic_verticals or []
+            if synthetic_verticals:
+                verticals.extend(synthetic_verticals)
+        except Exception as exc:
+            print(f"[monetization_pipeline_fast] keyword discovery import skipped: {exc}")
+            if KEYWORD_DISCOVERY_ONLY:
+                return []
+    return verticals
 
 
 def total_seed_count(verticals: list[dict[str, Any]]) -> int:
@@ -461,6 +487,12 @@ def collect_candidates() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 bucket = seed_entry.get("bucket")
             seed = normalize(seed_value)
             if not seed:
+                continue
+            if bucket == "keyword_discovery" and word_count(seed) > MAX_KEYWORD_DISCOVERY_SEED_WORDS:
+                print(
+                    f"[monetization_pipeline_fast] seed skipped: {seed} ({vertical_name}) | "
+                    f"reason=keyword_seed_too_long max_words={MAX_KEYWORD_DISCOVERY_SEED_WORDS}"
+                )
                 continue
 
             batch_stats["total_seeds"] += 1

@@ -4,13 +4,16 @@
 
 Yield and reference-relative quality are monitored at the batch level.
 
-The monitoring layer is post-batch. It does not change validation outputs. It reads validated niche snapshots, computes batch KPI, maintains rolling history, and emits alert artifacts for dashboards and downstream agents.
+The monitoring layer is post-batch. It does not change validation outputs. It reads seed status and validation artifacts, computes batch KPI, maintains rolling history, and emits alert artifacts for dashboards and downstream agents.
+
+The current 2026 repo state also requires yield interpretation for batches that are candidate-heavy but winner-light.
 
 ## Primary artifacts
 
 Inputs:
 
 - `niche_engine/accepted/seed_statuses.json`
+- `niche_engine/accepted/niche_package.json`
 - `data/validated_niches/items/*.json`
 
 Outputs:
@@ -21,9 +24,12 @@ Outputs:
 
 ## Batch KPI
 
-Current KPI set:
+Current KPI set may include:
 
 - `winner_yield`
+- `winner_yield_raw`
+- `winner_yield_reliable`
+- `reliable_seed_count`
 - `avg_fms_ratio_winners`
 - `avg_str_ratio_winners`
 - `avg_sold_ratio_winners`
@@ -31,6 +37,10 @@ Current KPI set:
 - `avg_fms_ratio_candidates`
 - `avg_str_ratio_candidates`
 - `avg_sold_ratio_candidates`
+- `market_candidate_total`
+- `market_accept_total`
+- `market_reject_total`
+- `data_uncertain_total`
 
 ## History model
 
@@ -93,6 +103,14 @@ Interpretation:
 - candidates remain far below winner liquidity
 - useful for spotting systematic low-conviction candidate generation
 
+### Candidate-heavy, winner-light batch
+
+Interpretation:
+
+- the system is finding live clusters
+- packaging or offer-shape may now be the bottleneck
+- build-first / live-validation may be a valid next step if product-intel is strong
+
 ## Alert artifact contract
 
 `reference_alerts.json` includes:
@@ -111,13 +129,20 @@ Each alert contains:
 
 ## Link into publish summary
 
-The publish summary should contain a compact `monitoring` block with:
+The publish summary should contain a compact `monitoring` block with fields such as:
 
 - summary path
 - alerts path
+- `batch_status`
+- `processed_seeds`
+- `total_seeds`
 - `winner_yield`
-- `avg_fms_ratio_winners`
-- `avg_sold_ratio_winners`
+- `winner_yield_raw`
+- `winner_yield_reliable`
+- `market_candidate_total`
+- `market_accept_total`
+- `market_reject_total`
+- `data_uncertain_total`
 - `alerts_count`
 - `alerts_levels`
 
@@ -129,3 +154,4 @@ Detailed alert logic remains in `data/batch_monitoring/*`, not in `publish_packe
 - do not mutate validated niche decisions from alerting logic
 - keep field names identical across monitoring JSON, specs, and dashboard consumers
 - add new alerts by extending the monitoring layer and documenting them here
+- when profile/buildability fields exist, prefer language that distinguishes winner yield from buildable candidate yield
